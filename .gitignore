@@ -1,0 +1,8 @@
+src/contiki-srf06-cc26xx.a
+src/Makefile
+src/raft_node.bin
+src/raft_node.elf
+src/raft_node.hex
+src/raft_node.srf06-cc26xx
+src/raft_node-srf06-cc26xx.map
+src/obj_srf06-cc26xx/*

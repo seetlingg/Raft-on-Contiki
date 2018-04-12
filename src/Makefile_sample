@@ -1,0 +1,18 @@
+CONTIKI_PROJECT = raft_node
+
+CONTIKI_WITH_IPV6 = 1
+
+include Makefile.target
+
+COMPILERPATH = /path/to/arm/gcc/compiler/bin
+CC = $(COMPILERPATH)/arm-none-eabi-gcc
+OBJCOPY = $(COMPILERPATH)/arm-none-eabi-objcopy
+
+
+CONTIKI = path/to/contiki
+include $(CONTIKI)/Makefile.include
+
+contikclean:
+	make clean $(CONTIKI)
+
+all: contikclean $(CONTIKI_PROJECT)
