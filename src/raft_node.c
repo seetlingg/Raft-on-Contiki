@@ -18,6 +18,9 @@
 #include <stdio.h>
 #include <stdint.h>
 
+static struct Raft node;
+bool init = false;
+
 static struct simple_udp_connection broadcast_connection;
 int recv = 0; //count on received messages
 bool buzzer_flag = false;
@@ -43,8 +46,10 @@ PROCESS_THREAD(raft_node_process, ev, data) {
 
   printf("--BROADCAST RAFT NODE PROCESS BEGIN--\n");
 
-  // static struct Raft node;
-  // raft_init(&node);
+  if (!init) {
+    raft_init(&node);
+    init = true;
+  }
 
   simple_udp_register(&broadcast_connection, UDP_PORT,
                       NULL, UDP_PORT,
@@ -53,6 +58,11 @@ PROCESS_THREAD(raft_node_process, ev, data) {
   while(1) {
     etimer_set(&timer, 2 * CLOCK_SECOND);
     PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&timer));
+
+    node.term += 1;
+
+    printf("DELAY: %d\n", (2 * CLOCK_SECOND));
+    printf("NODE: {term: %ld, timeout: %d, state: %d}\n", node.term, node.timeout, node.state);
   }
 
   PROCESS_END();
