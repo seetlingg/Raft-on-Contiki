@@ -16,12 +16,20 @@ void raft_init(struct Raft *node) {
   node->term = 0;
   node->timeout = (uint8_t)get_timeout();
   node->state = follower;
+  node->totalVotes = 0;
 }
 
 uint8_t get_timeout() {
   //contiki random function (0 - 65,535)
   uint16_t r = random_rand();
   printf("RAND: %d\n", r);
+
   //scale value to min and max timeout range
-  return (const uint8_t)((float)r / (float)RANDOM_RAND_MAX) * (MAX_TIMEOUT - MIN_TIMEOUT) + MIN_TIMEOUT;
+  float _r = (float)r;
+  float _randMax = (float)RANDOM_RAND_MAX;
+  float _maxTimeout = (float)MAX_TIMEOUT;
+  float _minTimeout = (float)MIN_TIMEOUT;
+  float res = (_r / _randMax) * (_maxTimeout - _minTimeout) + _minTimeout;
+
+  return (const uint8_t)res;
 }
