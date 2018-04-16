@@ -5,6 +5,7 @@
 *******************************/
 #include "contiki.h"
 #include "net/ip/uip.h"
+#include "net/ip/uip-debug.h"
 #include "lib/random.h"
 #include "raft.h"
 
@@ -12,9 +13,11 @@
 
 uint8_t get_timeout(void);
 
+// RAFT NODE Functions
 void raft_init(struct Raft *node) {
   node->term = 0;
-  node->timeout = (uint8_t)get_timeout();
+  uip_ipaddr(&node->votedFor, 0,0,0,0);
+  node->timeout = get_timeout();
   node->state = follower;
   node->totalVotes = 0;
 }
@@ -32,4 +35,30 @@ uint8_t get_timeout() {
   float res = (_r / _randMax) * (_maxTimeout - _minTimeout) + _minTimeout;
 
   return (const uint8_t)res;
+}
+
+void raft_print(struct Raft *node) {
+  printf("NODE: {term: %ld, votedFor: ", node->term);
+  uip_debug_ipaddr_print(&node->votedFor);
+  printf(", timeout: %d, state: %d, totalVotes: %d}\n", node->timeout, node->state, node->totalVotes);
+}
+
+// RAFT MSG Functions
+void heartbeat_print(struct Heartbeat *heart) {
+  printf("HEARTBEAT: {type: %d, term: %ld, leaderId: ", heart->type, heart->term);
+  uip_debug_ipaddr_print(&heart->leaderId);
+  printf(", prevLogIndex: %d, prevLogTerm: %d, entries: %d, leaderCommit: %d}\n",
+         heart->prevLogIndex, heart->prevLogTerm, heart->entries, heart->leaderCommit);
+}
+
+void election_print(struct Election *elect) {
+  printf("ELECTION: {type: %d, term: %ld, lastLogIndex: %d, lastLogTerm: %d}\n",
+         elect->type, elect->term, elect->lastLogIndex, elect->lastLogTerm);
+}
+
+void vote_print(struct Vote *vote) {
+  printf("ELECTION: {type: %d, term: %ld, voteFor: ",
+         vote->type, vote->term);
+  uip_debug_ipaddr_print(&vote->voteFor);
+  printf(", voteGranted: %s}\n", vote->voteGranted ? "true" : "false");
 }

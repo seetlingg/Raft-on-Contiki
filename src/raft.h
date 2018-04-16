@@ -55,6 +55,11 @@ struct Vote {
 };
 
 void raft_init(struct Raft *node);
+void raft_print(struct Raft *node);
+
+void heartbeat_print(struct Heartbeat *heart);
+void election_print(struct Election *elect);
+void vote_print(struct Vote *vote);
 
 void call_election(struct Raft *node);
 void send_vote(struct Raft *node);

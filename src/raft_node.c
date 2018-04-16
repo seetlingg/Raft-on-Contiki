@@ -43,7 +43,8 @@ receiver(struct simple_udp_connection *c,
   if (msg->term > node.term) { //got msg with higer term, update term and change to follower state
     node.term = msg->term;
     node.state = follower;
-    // node.votedFor = 0; //reset voted for
+    uip_ipaddr(&node.votedFor, 0,0,0,0); //reset voted for
+    node.totalVotes = 0;
   }
   else if (msg->term < node.term) { //ignore states less than node state
     return;
@@ -54,13 +55,25 @@ receiver(struct simple_udp_connection *c,
       //election
       if (msg->type == election) {
         struct Election *elect = (struct Election *)data;
-        //reset timer
-        //if vote not used (does it have to be the address? -> bool?)
+        election_print(elect);
 
+        //reset timer
+
+        uip_ipaddr_t nullAddr;
+        uip_ipaddr(&nullAddr, 0,0,0,0);
+        if (uip_ipaddr_cmp(&nullAddr, &node.votedFor)) { //vote has not been used
+          //update node.votedFor to sender_addr
+          //send Vote msg with voteGranted = true
+        }
+        else { //vote was used this term
+          //send Vote msg with voteGranted = false
+        }
       }
       //heartbeat
       if (msg->type == heartbeat) {
         struct Heartbeat *heart = (struct Heartbeat *)data;
+        heartbeat_print(heart);
+
         //reset timer
       }
       //log stuff later on
@@ -69,10 +82,13 @@ receiver(struct simple_udp_connection *c,
       //vote response
       if (msg->type == vote) {
         struct Vote *vote = (struct Vote *)data;
+        vote_print(vote);
+
         //vote is for this node
         if ((uip_ipaddr_cmp(&vote->voteFor, receiver_addr)) && (vote->voteGranted)) {
           //increment vote count
           //if vote count is majority, change to leader & send heartbeat
+          //else reset timer
         }
       }
       break;
@@ -106,15 +122,15 @@ PROCESS_THREAD(raft_node_process, ev, data) {
     node.term += 1;
 
     printf("DELAY: %d\n", (2 * CLOCK_SECOND));
-    printf("NODE: {term: %ld, timeout: %d, state: %d}\n", node.term, node.timeout, node.state);
-
+    raft_print(&node);
 
     switch (node.state) {
       case follower:
-        break;
       case candidate:
+        //if timeout, update term and state and send election msg
         break;
       case leader:
+        //on leader timer proc wait until, send heartbeat
         break;
     }
   }
