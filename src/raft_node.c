@@ -70,7 +70,7 @@ receiver(struct simple_udp_connection *c,
       if (msg->type == vote) {
         struct Vote *vote = (struct Vote *)data;
         //vote is for this node
-        if ((vote->voteFor == receiver_addr) && (vote->voteGranted)) {
+        if ((uip_ipaddr_cmp(&vote->voteFor, receiver_addr)) && (vote->voteGranted)) {
           //increment vote count
           //if vote count is majority, change to leader & send heartbeat
         }

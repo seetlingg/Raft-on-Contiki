@@ -35,7 +35,7 @@ struct Heartbeat {
   uint8_t prevLogIndex; // Not sure what to do with these quite yet
   uint8_t prevLogTerm;  //
   uint8_t entries;      //
-  uint8_t leaderCommit  //
+  uint8_t leaderCommit;  //
 };
 
 // start election message
