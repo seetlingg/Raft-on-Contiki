@@ -3,7 +3,7 @@
  * [Raft Consensus Algorithm](https://raft.github.io/)
  * [Contiki Operating System](http://www.contiki-os.org/)
  * [Contiki Source](https://github.com/contiki-os/contiki)
- * [TI CC2650 Sensortag] (http://processors.wiki.ti.com/index.php/SensorTag2015)
+ * [TI CC2650 Sensortag](http://processors.wiki.ti.com/index.php/SensorTag2015)
 ## Modifying the Makefile
  1. Rename Makefile_sample to Makefile
  2. Modify the paths from the project folder to your instances of the arm-gcc compiler and the contiki source<br>
