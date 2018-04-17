@@ -8,6 +8,7 @@
 #define UDP_PORT 1234 //UDP Broadcast Port for messaging
 #define MIN_TIMEOUT 3 //minimum value for timeout
 #define MAX_TIMEOUT 7 //maximum value for timeout
+#define LEADER_SEND_INTERVAL (MIN_TIMEOUT / 2)
 #define TOTAL_NODES 4 //total number of nodes in network
 
 enum states {follower, candidate, leader};
@@ -31,12 +32,13 @@ struct Msg {
 struct Heartbeat {
   enum msg_types type;
   uint32_t term;
-  uip_ipaddr_t leaderId;
   uint8_t prevLogIndex; // Not sure what to do with these quite yet
   uint8_t prevLogTerm;  //
   uint8_t entries;      //
   uint8_t leaderCommit; //
 };
+void build_heartbeat(struct Heartbeat *heart, uint32_t term, uint8_t prevLogIndex,
+               uint8_t prevLogTerm, uint8_t entries, uint8_t leaderCommit);
 
 // start election message
 struct Election {
@@ -45,6 +47,7 @@ struct Election {
   uint8_t lastLogIndex; // Same as above
   uint8_t lastLogTerm;  //
 };
+void build_election(struct Election *elect, uint32_t term, uint8_t lastLogIndex, uint8_t lastLogTerm);
 
 // vote response for election
 struct Vote {
@@ -53,6 +56,7 @@ struct Vote {
   uip_ipaddr_t voteFor;
   bool voteGranted;
 };
+void build_vote(struct Vote *vote, uint32_t term, uip_ipaddr_t *voteFor, bool voteGranted);
 
 void raft_init(struct Raft *node);
 void raft_print(struct Raft *node);

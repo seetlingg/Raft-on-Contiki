@@ -41,6 +41,7 @@ void raft_set_follower(struct Raft *node) {
   node->state = follower;
   uip_ipaddr(&node->votedFor, 0,0,0,0); //reset voted for
   node->totalVotes = 0;
+  printf("Set State FOLLOWER\n");
 }
 
 void raft_set_candidate(struct Raft *node) {
@@ -48,9 +49,11 @@ void raft_set_candidate(struct Raft *node) {
   //vote for self
   uip_ipaddr(&node->votedFor, 1,1,1,1); //some junk so it won't be the same as the null addr
   node->totalVotes = 1;
+  printf("Set State CANDIDATE\n");
 }
 void raft_set_leader(struct Raft *node) {
   node->state = leader;
+  printf("Set State LEADER\n");
 }
 
 void raft_print(struct Raft *node) {
@@ -60,9 +63,34 @@ void raft_print(struct Raft *node) {
 }
 
 // RAFT MSG Functions
+void build_election(struct Election *elect, uint32_t term, uint8_t lastLogIndex, uint8_t lastLogTerm) {
+  elect->type = election;
+  elect->term = term;
+  elect->lastLogIndex = lastLogIndex;
+  elect->lastLogTerm = lastLogTerm;
+}
+
+void build_heartbeat(struct Heartbeat *heart, uint32_t term, uint8_t prevLogIndex,
+               uint8_t prevLogTerm, uint8_t entries, uint8_t leaderCommit) {
+  heart->type = heartbeat;
+  heart->term = term;
+  heart->prevLogIndex = prevLogIndex;
+  heart->prevLogTerm = prevLogTerm;
+  heart->entries = entries;
+  heart->leaderCommit = leaderCommit;
+}
+
+void build_vote(struct Vote *voteMsg, uint32_t term, uip_ipaddr_t *voteFor, bool voteGranted) {
+  voteMsg->type = vote;
+  voteMsg->term = term;
+  uip_ipaddr_copy(&voteMsg->voteFor, voteFor);
+  voteMsg->voteGranted = voteGranted;
+}
+
+
 void heartbeat_print(struct Heartbeat *heart) {
-  printf("HEARTBEAT: {type: %d, term: %ld, leaderId: ", heart->type, heart->term);
-  uip_debug_ipaddr_print(&heart->leaderId);
+  printf("HEARTBEAT: {type: %d, term: %ld", heart->type, heart->term);
+  // uip_debug_ipaddr_print(&heart->leaderId);
   printf(", prevLogIndex: %d, prevLogTerm: %d, entries: %d, leaderCommit: %d}\n",
          heart->prevLogIndex, heart->prevLogTerm, heart->entries, heart->leaderCommit);
 }
