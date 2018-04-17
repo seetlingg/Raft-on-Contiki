@@ -35,7 +35,7 @@ struct Heartbeat {
   uint8_t prevLogIndex; // Not sure what to do with these quite yet
   uint8_t prevLogTerm;  //
   uint8_t entries;      //
-  uint8_t leaderCommit;  //
+  uint8_t leaderCommit; //
 };
 
 // start election message
@@ -56,6 +56,10 @@ struct Vote {
 
 void raft_init(struct Raft *node);
 void raft_print(struct Raft *node);
+void raft_set_follower(struct Raft *node);
+void raft_set_candidate(struct Raft *node);
+void raft_set_leader(struct Raft *node);
+
 
 void heartbeat_print(struct Heartbeat *heart);
 void election_print(struct Election *elect);

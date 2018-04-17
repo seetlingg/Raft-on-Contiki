@@ -37,6 +37,22 @@ uint8_t get_timeout() {
   return (const uint8_t)res;
 }
 
+void raft_set_follower(struct Raft *node) {
+  node->state = follower;
+  uip_ipaddr(&node->votedFor, 0,0,0,0); //reset voted for
+  node->totalVotes = 0;
+}
+
+void raft_set_candidate(struct Raft *node) {
+  node->state = candidate;
+  //vote for self
+  uip_ipaddr(&node->votedFor, 1,1,1,1); //some junk so it won't be the same as the null addr
+  node->totalVotes = 1;
+}
+void raft_set_leader(struct Raft *node) {
+  node->state = leader;
+}
+
 void raft_print(struct Raft *node) {
   printf("NODE: {term: %ld, votedFor: ", node->term);
   uip_debug_ipaddr_print(&node->votedFor);

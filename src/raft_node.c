@@ -19,11 +19,10 @@
 #include <stdint.h>
 
 static struct Raft node;
+static struct timer nodeTimer;
 bool init = false;
 
 static struct simple_udp_connection broadcast_connection;
-int recv = 0; //count on received messages
-bool buzzer_flag = false;
 
 /*---------------------------------------------------------------------------*/
 PROCESS(raft_node_process, "UDP broadcast raft node process");
@@ -42,9 +41,7 @@ receiver(struct simple_udp_connection *c,
 
   if (msg->term > node.term) { //got msg with higer term, update term and change to follower state
     node.term = msg->term;
-    node.state = follower;
-    uip_ipaddr(&node.votedFor, 0,0,0,0); //reset voted for
-    node.totalVotes = 0;
+    raft_set_follower(&node);
   }
   else if (msg->term < node.term) { //ignore states less than node state
     return;
@@ -63,6 +60,8 @@ receiver(struct simple_udp_connection *c,
         uip_ipaddr(&nullAddr, 0,0,0,0);
         if (uip_ipaddr_cmp(&nullAddr, &node.votedFor)) { //vote has not been used
           //update node.votedFor to sender_addr
+          uip_ipaddr_copy(&node.votedFor, receiver_addr);
+
           //send Vote msg with voteGranted = true
         }
         else { //vote was used this term
@@ -87,8 +86,12 @@ receiver(struct simple_udp_connection *c,
         //vote is for this node
         if ((uip_ipaddr_cmp(&vote->voteFor, receiver_addr)) && (vote->voteGranted)) {
           //increment vote count
-          //if vote count is majority, change to leader & send heartbeat
-          //else reset timer
+          ++node.totalVotes;
+          // if () { //if vote count is majority, change to leader & send heartbeat
+          //
+          // }
+          // else { //else reset timer
+          // }
         }
       }
       break;
@@ -99,7 +102,7 @@ receiver(struct simple_udp_connection *c,
 }
 /*---------------------------------------------------------------------------*/
 PROCESS_THREAD(raft_node_process, ev, data) {
-  static struct etimer timer;
+  static struct etimer leaderTimer;
   uip_ipaddr_t addr;
 
   PROCESS_BEGIN();
@@ -111,28 +114,31 @@ PROCESS_THREAD(raft_node_process, ev, data) {
     init = true;
   }
 
+  timer_set(&nodeTimer, node.timeout);
+
   simple_udp_register(&broadcast_connection, UDP_PORT,
                       NULL, UDP_PORT,
                       receiver);
 
   while(1) {
-    etimer_set(&timer, 2 * CLOCK_SECOND);
-    PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&timer));
+    if ((node.state == follower) || (node.state == candidate)) {
+      //if timeout, update term and state and send election msg
+      if (timer_expired(&nodeTimer)) {
+        printf("msg timeout, starting election process\n");
+        ++node.term;
+        raft_set_candidate(&node);
 
-    node.term += 1;
-
-    printf("DELAY: %d\n", (2 * CLOCK_SECOND));
-    raft_print(&node);
-
-    switch (node.state) {
-      case follower:
-      case candidate:
-        //if timeout, update term and state and send election msg
-        break;
-      case leader:
-        //on leader timer proc wait until, send heartbeat
-        break;
+        //send election
+      }
     }
+    else if (node.state == leader) {
+      //on leader timer proc wait until
+      etimer_set(&leaderTimer, 2 * CLOCK_SECOND);
+      PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&leaderTimer));
+
+      //send heartbeat
+    }
+    raft_print(&node);
   }
 
   PROCESS_END();
