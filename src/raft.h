@@ -6,8 +6,8 @@
 #include "contiki.h"
 
 #define UDP_PORT 1234 //UDP Broadcast Port for messaging
-#define MIN_TIMEOUT 3 //minimum value for timeout
-#define MAX_TIMEOUT 7 //maximum value for timeout
+#define MIN_TIMEOUT 5 //minimum value for timeout
+#define MAX_TIMEOUT 10 //maximum value for timeout
 #define LEADER_SEND_INTERVAL (MIN_TIMEOUT / 2)
 #define TOTAL_NODES 4 //total number of nodes in network
 
@@ -64,7 +64,7 @@ void raft_set_follower(struct Raft *node);
 void raft_set_candidate(struct Raft *node);
 void raft_set_leader(struct Raft *node);
 
-
+void msg_print(struct Msg *msg);
 void heartbeat_print(struct Heartbeat *heart);
 void election_print(struct Election *elect);
 void vote_print(struct Vote *vote);

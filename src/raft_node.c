@@ -9,7 +9,6 @@
 #include "net/ip/uip.h"
 #include "net/ipv6/uip-ds6.h"
 
-#include "dev/leds.h"
 #include "simple-udp.h"
 #include "sys/timer.h"
 
@@ -37,8 +36,9 @@ receiver(struct simple_udp_connection *c,
          uint16_t receiver_port,
          const uint8_t *data,
          uint16_t datalen) {
-
+  printf("GOT MESSAGE\n");
   struct Msg *msg = (struct Msg *)data;
+  msg_print(msg);
 
   if (msg->term > node.term) { //got msg with higer term, update term and change to follower state
     node.term = msg->term;
@@ -56,7 +56,7 @@ receiver(struct simple_udp_connection *c,
         election_print(elect);
 
         //reset timer
-        timer_set(&nodeTimer, node.timeout);
+        timer_set(&nodeTimer, node.timeout * CLOCK_SECOND);
 
         //build vote msg
         struct Vote voteMsg;
@@ -84,7 +84,7 @@ receiver(struct simple_udp_connection *c,
         heartbeat_print(heart);
 
         //reset timer
-        timer_set(&nodeTimer, node.timeout);
+        timer_set(&nodeTimer, node.timeout * CLOCK_SECOND);
       }
       //log stuff later on
       break;
@@ -107,7 +107,7 @@ receiver(struct simple_udp_connection *c,
             simple_udp_sendto(&broadcast_connection, &heart, sizeof(heart), &addr);
           }
           else { //else reset timer
-            timer_set(&nodeTimer, node.timeout);
+            timer_set(&nodeTimer, node.timeout * CLOCK_SECOND);
           }
         }
       }
@@ -130,7 +130,9 @@ PROCESS_THREAD(raft_node_process, ev, data) {
     init = true;
   }
 
-  timer_set(&nodeTimer, node.timeout);
+  raft_print(&node);
+
+  timer_set(&nodeTimer, node.timeout * CLOCK_SECOND);
 
   simple_udp_register(&broadcast_connection, UDP_PORT,
                       NULL, UDP_PORT,
@@ -141,6 +143,7 @@ PROCESS_THREAD(raft_node_process, ev, data) {
       //if timeout, update term and state and send election msg
       if (timer_expired(&nodeTimer)) {
         printf("msg timeout, starting election process\n");
+        timer_set(&nodeTimer, node.timeout * CLOCK_SECOND);
         ++node.term;
         raft_set_candidate(&node);
 
@@ -164,7 +167,6 @@ PROCESS_THREAD(raft_node_process, ev, data) {
       uip_create_linklocal_allnodes_mcast(&addr);
       simple_udp_sendto(&broadcast_connection, &heart, sizeof(heart), &addr);
     }
-    raft_print(&node);
   }
 
   PROCESS_END();

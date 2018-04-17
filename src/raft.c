@@ -8,6 +8,7 @@
 #include "net/ip/uip-debug.h"
 #include "lib/random.h"
 #include "raft.h"
+#include "dev/leds.h"
 
 #include <stdio.h>
 
@@ -41,7 +42,10 @@ void raft_set_follower(struct Raft *node) {
   node->state = follower;
   uip_ipaddr(&node->votedFor, 0,0,0,0); //reset voted for
   node->totalVotes = 0;
+  leds_on(LEDS_RED);
+  leds_off(LEDS_GREEN);
   printf("Set State FOLLOWER\n");
+  raft_print(node);
 }
 
 void raft_set_candidate(struct Raft *node) {
@@ -49,11 +53,17 @@ void raft_set_candidate(struct Raft *node) {
   //vote for self
   uip_ipaddr(&node->votedFor, 1,1,1,1); //some junk so it won't be the same as the null addr
   node->totalVotes = 1;
+  leds_on(LEDS_RED);
+  leds_on(LEDS_GREEN);
   printf("Set State CANDIDATE\n");
+  raft_print(node);
 }
 void raft_set_leader(struct Raft *node) {
   node->state = leader;
+  leds_on(LEDS_GREEN);
+  leds_off(LEDS_RED);
   printf("Set State LEADER\n");
+  raft_print(node);
 }
 
 void raft_print(struct Raft *node) {
@@ -87,6 +97,9 @@ void build_vote(struct Vote *voteMsg, uint32_t term, uip_ipaddr_t *voteFor, bool
   voteMsg->voteGranted = voteGranted;
 }
 
+void msg_print(struct Msg *msg) {
+  printf("MSG: {type: %d, term: %ld}\n", msg->type, msg->term);
+}
 
 void heartbeat_print(struct Heartbeat *heart) {
   printf("HEARTBEAT: {type: %d, term: %ld", heart->type, heart->term);
