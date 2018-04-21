@@ -18,7 +18,9 @@
 #include <stdint.h>
 
 static struct Raft node;
-static struct timer nodeTimer;
+//static struct timer nodeTimer;
+static struct ctimer nodeTimeout;
+static void timeout_callback(void *ptr);
 bool init = false;
 
 static struct simple_udp_connection broadcast_connection;
@@ -38,7 +40,7 @@ receiver(struct simple_udp_connection *c,
          uint16_t datalen) {
   printf("GOT MESSAGE\n");
   struct Msg *msg = (struct Msg *)data;
-  msg_print(msg);
+  msg_print(node.term, sender_addr, msg);
 
   if (msg->term > node.term) { //got msg with higer term, update term and change to follower state
     node.term = msg->term;
@@ -50,72 +52,96 @@ receiver(struct simple_udp_connection *c,
 
   switch (node.state) {
     case follower:
-      //election
-      if (msg->type == election) {
-        struct Election *elect = (struct Election *)data;
-        election_print(elect);
+      {
+        //election
+        if (msg->type == election) {
+          struct Election *elect = (struct Election *)data;
+          election_print(elect);
 
-        //reset timer
-        timer_set(&nodeTimer, node.timeout * CLOCK_SECOND);
+          //reset timer
+          ctimer_set(&nodeTimeout, node.timeout * CLOCK_SECOND, &timeout_callback, NULL);
 
-        //build vote msg
-        struct Vote voteMsg;
-        build_vote(&voteMsg, node.term, (uip_ipaddr_t *)sender_addr, true);
+          //build vote msg
+          static struct Vote voteMsg;
+          build_vote(&voteMsg, node.term, (uip_ipaddr_t *)sender_addr, true);
 
-        uip_ipaddr_t nullAddr;
-        uip_ipaddr(&nullAddr, 0,0,0,0);
-        if (uip_ipaddr_cmp(&nullAddr, &node.votedFor)) { //vote has not been used
-          //update node.votedFor to sender_addr
-          uip_ipaddr_copy(&node.votedFor, sender_addr);
-          //voteGranted = true already set
+          uip_ipaddr_t nullAddr;
+          uip_ipaddr(&nullAddr, 1,2,3,4);
+          if (uip_ipaddr_cmp(&nullAddr, &node.votedFor)) { //vote has not been used
+            printf("Updating votedFor and granting vote.\n");
+            //update node.votedFor to sender_addr
+            uip_ipaddr_copy(&node.votedFor, sender_addr);
+            //voteGranted = true already set
+          }
+          else { //vote was used this term
+            printf("Vote has already been used this term.\n");
+            //voteGranted = false
+            voteMsg.voteGranted = false;
+          }
+
+          //send vote
+          uip_create_linklocal_allnodes_mcast(&addr);
+          simple_udp_sendto(&broadcast_connection, &voteMsg, sizeof(voteMsg), &addr);
         }
-        else { //vote was used this term
-          //voteGranted = false
-          voteMsg.voteGranted = false;
+        //heartbeat
+        else if (msg->type == heartbeat) {
+          struct Heartbeat *heart = (struct Heartbeat *)data;
+          heartbeat_print(heart);
+
+          //reset timer
+          ctimer_set(&nodeTimeout, node.timeout * CLOCK_SECOND, &timeout_callback, NULL);
         }
-
-        //send vote
-        uip_create_linklocal_allnodes_mcast(&addr);
-        simple_udp_sendto(&broadcast_connection, &voteMsg, sizeof(voteMsg), &addr);
+        //log stuff later on
       }
-      //heartbeat
-      if (msg->type == heartbeat) {
-        struct Heartbeat *heart = (struct Heartbeat *)data;
-        heartbeat_print(heart);
-
-        //reset timer
-        timer_set(&nodeTimer, node.timeout * CLOCK_SECOND);
-      }
-      //log stuff later on
       break;
     case candidate:
-      //vote response
-      if (msg->type == vote) {
-        struct Vote *vote = (struct Vote *)data;
-        vote_print(vote);
+      {//vote response
+        if (msg->type == vote) {
+          struct Vote *vote = (struct Vote *)data;
+          vote_print(vote);
 
-        //vote is for this node
-        if ((uip_ipaddr_cmp(&vote->voteFor, receiver_addr)) && (vote->voteGranted)) {
-          //increment vote count
-          ++node.totalVotes;
-          if (node.totalVotes > (TOTAL_NODES / 2)) { //if vote count is majority, change to leader & send heartbeat
-            raft_set_leader(&node);
-            struct Heartbeat heart;
-            build_heartbeat(&heart, node.term, 0, 0, 0, 0); //fill in vars later
+          //vote is for this node
+          if ((uip_ipaddr_cmp(&vote->voteFor, receiver_addr)) && (vote->voteGranted)) {
+            //increment vote count
+            ++node.totalVotes;
+            if (node.totalVotes > (TOTAL_NODES / 2)) { //if vote count is majority, change to leader & send heartbeat
+              raft_set_leader(&node);
+              static struct Heartbeat heart;
+              build_heartbeat(&heart, node.term, 0, 0, 0, 0); //fill in vars later
 
-            uip_create_linklocal_allnodes_mcast(&addr);
-            simple_udp_sendto(&broadcast_connection, &heart, sizeof(heart), &addr);
-          }
-          else { //else reset timer
-            timer_set(&nodeTimer, node.timeout * CLOCK_SECOND);
+              uip_create_linklocal_allnodes_mcast(&addr);
+              simple_udp_sendto(&broadcast_connection, &heart, sizeof(heart), &addr);
+            }
+            ctimer_set(&nodeTimeout, node.timeout * CLOCK_SECOND, &timeout_callback, NULL);
           }
         }
       }
       break;
     case leader:
-      //log stuff later on
+      {//log stuff later on
+      }
       break;
   }
+}
+/*---------------------------------------------------------------------------*/
+static void timeout_callback(void *ptr) {
+  printf("TIMEOUT CALLBACK\n");
+  if ((node.state == follower) || (node.state == candidate)) {
+    printf("msg timeout, starting election process\n");
+    ++node.term;
+    raft_set_candidate(&node);
+
+    //send election
+    static struct Election elect;
+    build_election(&elect, node.term, 0, 0); //Log term and index to be added later
+
+    uip_create_linklocal_allnodes_mcast(&addr);
+    simple_udp_sendto(&broadcast_connection, &elect, sizeof(elect), &addr);
+  }
+  else if (node.state == leader) {}
+
+  // ctimer_reset(&nodeTimeout);
+  ctimer_set(&nodeTimeout, node.timeout * CLOCK_SECOND, &timeout_callback, NULL);
 }
 /*---------------------------------------------------------------------------*/
 PROCESS_THREAD(raft_node_process, ev, data) {
@@ -132,37 +158,24 @@ PROCESS_THREAD(raft_node_process, ev, data) {
 
   raft_print(&node);
 
-  timer_set(&nodeTimer, node.timeout * CLOCK_SECOND);
+  ctimer_set(&nodeTimeout, node.timeout * CLOCK_SECOND, &timeout_callback, NULL);
+
+  //timer_set(&nodeTimer, node.timeout * CLOCK_SECOND);
 
   simple_udp_register(&broadcast_connection, UDP_PORT,
                       NULL, UDP_PORT,
                       receiver);
 
   while(1) {
-    if ((node.state == follower) || (node.state == candidate)) {
-      //if timeout, update term and state and send election msg
-      if (timer_expired(&nodeTimer)) {
-        printf("msg timeout, starting election process\n");
-        timer_set(&nodeTimer, node.timeout * CLOCK_SECOND);
-        ++node.term;
-        raft_set_candidate(&node);
-
-        //send election
-        struct Election elect;
-        build_election(&elect, node.term, 0, 0); //Log term and index to be added later
-
-        uip_create_linklocal_allnodes_mcast(&addr);
-        simple_udp_sendto(&broadcast_connection, &elect, sizeof(elect), &addr);
-      }
-    }
-    else if (node.state == leader) {
-      //on leader timer proc wait until
-      etimer_set(&leaderTimer, LEADER_SEND_INTERVAL * CLOCK_SECOND);
-      PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&leaderTimer));
-
+    etimer_set(&leaderTimer, LEADER_SEND_INTERVAL * CLOCK_SECOND);
+    PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&leaderTimer));
+    if (node.state == leader) {
       //send heartbeat
-      struct Heartbeat heart;
+      static struct Heartbeat heart;
       build_heartbeat(&heart, node.term, 0, 0, 0, 0); //add rest of params later
+
+      printf("LEADER SENDING HEARTBEAT\n");
+      heartbeat_print(&heart);
 
       uip_create_linklocal_allnodes_mcast(&addr);
       simple_udp_sendto(&broadcast_connection, &heart, sizeof(heart), &addr);

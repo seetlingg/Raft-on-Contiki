@@ -40,7 +40,7 @@ uint8_t get_timeout() {
 
 void raft_set_follower(struct Raft *node) {
   node->state = follower;
-  uip_ipaddr(&node->votedFor, 0,0,0,0); //reset voted for
+  uip_ipaddr(&node->votedFor, 1,2,3,4); //reset voted for
   node->totalVotes = 0;
   leds_on(LEDS_RED);
   leds_off(LEDS_GREEN);
@@ -51,7 +51,7 @@ void raft_set_follower(struct Raft *node) {
 void raft_set_candidate(struct Raft *node) {
   node->state = candidate;
   //vote for self
-  uip_ipaddr(&node->votedFor, 1,1,1,1); //some junk so it won't be the same as the null addr
+  uip_ipaddr(&node->votedFor, 22,22,22,22); //some junk so it won't be the same as the null addr
   node->totalVotes = 1;
   leds_on(LEDS_RED);
   leds_on(LEDS_GREEN);
@@ -97,8 +97,10 @@ void build_vote(struct Vote *voteMsg, uint32_t term, uip_ipaddr_t *voteFor, bool
   voteMsg->voteGranted = voteGranted;
 }
 
-void msg_print(struct Msg *msg) {
-  printf("MSG: {type: %d, term: %ld}\n", msg->type, msg->term);
+void msg_print(uint32_t currTerm, const uip_ipaddr_t *from, struct Msg *msg) {
+  printf("MSG from ");
+  uip_debug_ipaddr_print(from);
+  printf(" in term %ld: {type: %d, term: %ld}\n", currTerm, msg->type, msg->term);
 }
 
 void heartbeat_print(struct Heartbeat *heart) {
@@ -114,7 +116,7 @@ void election_print(struct Election *elect) {
 }
 
 void vote_print(struct Vote *vote) {
-  printf("ELECTION: {type: %d, term: %ld, voteFor: ",
+  printf("VOTE: {type: %d, term: %ld, voteFor: ",
          vote->type, vote->term);
   uip_debug_ipaddr_print(&vote->voteFor);
   printf(", voteGranted: %s}\n", vote->voteGranted ? "true" : "false");

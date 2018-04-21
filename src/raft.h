@@ -9,7 +9,7 @@
 #define MIN_TIMEOUT 5 //minimum value for timeout
 #define MAX_TIMEOUT 10 //maximum value for timeout
 #define LEADER_SEND_INTERVAL (MIN_TIMEOUT / 2)
-#define TOTAL_NODES 4 //total number of nodes in network
+#define TOTAL_NODES 2 //total number of nodes in network
 
 enum states {follower, candidate, leader};
 enum msg_types {heartbeat, election, vote};
@@ -64,7 +64,7 @@ void raft_set_follower(struct Raft *node);
 void raft_set_candidate(struct Raft *node);
 void raft_set_leader(struct Raft *node);
 
-void msg_print(struct Msg *msg);
+void msg_print(uint32_t currTerm, const uip_ipaddr_t *from, struct Msg *msg);
 void heartbeat_print(struct Heartbeat *heart);
 void election_print(struct Election *elect);
 void vote_print(struct Vote *vote);
