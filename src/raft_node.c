@@ -69,10 +69,14 @@ receiver(struct simple_udp_connection *c,
           uint8_t nullAddr[8] = {0,0,0,0,0,0,0,0};
           if (mac_compare(nullAddr, node.votedFor)) { //vote has not been used
             printf("Updating votedFor and granting vote.\n");
+            printf("elect->from: ");
             //update node.votedFor to sender_addr
             for (int i = 0; i < 8; ++i) {
+              printf("%d", elect->from[i]);
               node.votedFor[i] = elect->from[i];
+              voteMsg->voteFor[i] = elect->from[i];
             }
+            printf("\n");
             //voteGranted = true already set
           }
           else { //vote was used this term
@@ -140,9 +144,8 @@ static void timeout_callback(void *ptr) {
     uip_create_linklocal_allnodes_mcast(&addr);
     simple_udp_sendto(&broadcast_connection, &elect, sizeof(elect), &addr);
   }
-  else if (node.state == leader) {}
+  else if (node.state == leader) {} //log stuff later on
 
-  // ctimer_reset(&nodeTimeout);
   ctimer_set(&nodeTimeout, node.timeout * CLOCK_SECOND, &timeout_callback, NULL);
 }
 /*---------------------------------------------------------------------------*/
@@ -161,8 +164,6 @@ PROCESS_THREAD(raft_node_process, ev, data) {
   raft_print(&node);
 
   ctimer_set(&nodeTimeout, node.timeout * CLOCK_SECOND, &timeout_callback, NULL);
-
-  //timer_set(&nodeTimer, node.timeout * CLOCK_SECOND);
 
   simple_udp_register(&broadcast_connection, UDP_PORT,
                       NULL, UDP_PORT,
