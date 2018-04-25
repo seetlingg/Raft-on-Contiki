@@ -39,7 +39,7 @@ receiver(struct simple_udp_connection *c,
          uint16_t receiver_port,
          const uint8_t *data,
          uint16_t datalen) {
-  printf("GOT MESSAGE\n");
+  printf("\nGOT MESSAGE\n");
   struct Msg *msg = (struct Msg *)data;
   msg_print(node.term, sender_addr, msg);
 
@@ -74,7 +74,7 @@ receiver(struct simple_udp_connection *c,
             for (int i = 0; i < 8; ++i) {
               printf("%d", elect->from[i]);
               node.votedFor[i] = elect->from[i];
-              voteMsg->voteFor[i] = elect->from[i];
+              voteMsg.voteFor[i] = elect->from[i];
             }
             printf("\n");
             //voteGranted = true already set

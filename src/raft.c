@@ -93,6 +93,8 @@ bool mac_compare(uint8_t a[], uint8_t b[]) {
 void build_election(struct Election *elect, uint32_t term, uint8_t from[], uint8_t lastLogIndex, uint8_t lastLogTerm) {
   elect->type = election;
   elect->term = term;
+  for (int i = 0; i < 8; ++i)
+    elect->from[i] = from[i];
   elect->lastLogIndex = lastLogIndex;
   elect->lastLogTerm = lastLogTerm;
 }
@@ -101,6 +103,8 @@ void build_heartbeat(struct Heartbeat *heart, uint32_t term, uint8_t from[], uin
                uint8_t prevLogTerm, uint8_t entries, uint8_t leaderCommit) {
   heart->type = heartbeat;
   heart->term = term;
+  for (int i = 0; i < 8; ++i)
+    heart->from[i] = from[i];
   heart->prevLogIndex = prevLogIndex;
   heart->prevLogTerm = prevLogTerm;
   heart->entries = entries;
@@ -111,12 +115,14 @@ void build_vote(struct Vote *voteMsg, uint32_t term, uint8_t from[], uint8_t vot
   voteMsg->type = vote;
   voteMsg->term = term;
   for (int i = 0; i < 8; ++i)
+    voteMsg->from[i] = from[i];
+  for (int i = 0; i < 8; ++i)
     voteMsg->voteFor[i] = voteFor[i];
   voteMsg->voteGranted = voteGranted;
 }
 
 void msg_print(uint32_t currTerm, const uip_ipaddr_t *from, struct Msg *msg) {
-  printf("\nMSG from ");
+  printf("MSG from ");
   uip_debug_ipaddr_print(from);
   printf(" in term %ld: {type: %d, term: %ld}\n", currTerm, msg->type, msg->term);
   printf("Sender MAC: ");
