@@ -22,3 +22,7 @@
  ``` make all ``` &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Clean directory, compile Contiki and Raft Node source<br>
  ``` make raft_node ``` &nbsp;Compile Raft Node source<br>
  ``` make clean ``` &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Clean directory
+## LED Color Coding for Node States
+* Follower: &nbsp;&nbsp;&nbsp;Red LED On
+* Candidate: Red and Green LEDs On
+* Leader: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Green LED On
