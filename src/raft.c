@@ -4,10 +4,14 @@
 * je787413@ohio.edu
 *******************************/
 #include "contiki.h"
-#include "net/ip/uip.h"
-#include "net/ip/uip-debug.h"
+#include "core/net/ip/uip.h"
+#include "core/net/ip/uip-debug.h"
+//#include "core/net/ip/uip-debug.c"
+
 #include "lib/random.h"
-#include "ieee-addr.h"
+#include "cpu/cc26xx-cc13xx/ieee-addr.h"
+//#include "cpu/cc26xx-cc13xx/ieee-addr.c"
+
 #include "raft.h"
 #include "dev/leds.h"
 
@@ -18,8 +22,9 @@ uint8_t get_timeout(void);
 // RAFT NODE Functions
 void raft_init(struct Raft *node) {
   node->term = 0;
+  int i = 0;
   ieee_addr_cpy_to(node->macAddr, 8);
-  for (int i = 0; i < 8; ++i)
+  for (i; i < 8; ++i)
     node->votedFor[i] = 0;
   node->timeout = get_timeout();
   node->state = follower;
@@ -43,7 +48,8 @@ uint8_t get_timeout() {
 
 void raft_set_follower(struct Raft *node) {
   node->state = follower;
-  for (int i = 0; i < 8; ++i) //reset voted for
+  int i = 0;
+  for (i; i < 8; ++i) //reset voted for
     node->votedFor[i] = 0;
   node->totalVotes = 0;
   leds_on(LEDS_RED);
@@ -72,17 +78,20 @@ void raft_set_leader(struct Raft *node) {
 }
 
 void raft_print(struct Raft *node) {
+  int i = 0;
+  int j = 0;
   printf("NODE: {term: %ld, macAddr: ", node->term);
-  for (int i = 0; i < 8; ++i)
+  for (i; i < 8; ++i)
     printf("%d", node->macAddr[i]);
   printf(",\n\t votedFor: ");
-  for (int i = 0; i < 8; ++i)
-    printf("%d", node->votedFor[i]);
+  for (j; j < 8; ++j)
+    printf("%d", node->votedFor[j]);
   printf(",\n\t timeout: %d, state: %d, totalVotes: %d}\n", node->timeout, node->state, node->totalVotes);
 }
 
 bool mac_compare(uint8_t a[], uint8_t b[]) {
-  for (int i = 0; i < 8; ++i) {
+  int i = 0;
+  for (i; i < 8; ++i) {
     if (a[i] != b[i])
       return false;
   }
@@ -93,7 +102,8 @@ bool mac_compare(uint8_t a[], uint8_t b[]) {
 void build_election(struct Election *elect, uint32_t term, uint8_t from[], uint8_t lastLogIndex, uint8_t lastLogTerm) {
   elect->type = election;
   elect->term = term;
-  for (int i = 0; i < 8; ++i)
+  int i = 0;
+  for (i; i < 8; ++i)
     elect->from[i] = from[i];
   elect->lastLogIndex = lastLogIndex;
   elect->lastLogTerm = lastLogTerm;
@@ -103,7 +113,8 @@ void build_heartbeat(struct Heartbeat *heart, uint32_t term, uint8_t from[], uin
                uint8_t prevLogTerm, uint8_t entries, uint8_t leaderCommit) {
   heart->type = heartbeat;
   heart->term = term;
-  for (int i = 0; i < 8; ++i)
+  int i = 0;
+  for (i; i < 8; ++i)
     heart->from[i] = from[i];
   heart->prevLogIndex = prevLogIndex;
   heart->prevLogTerm = prevLogTerm;
@@ -114,10 +125,12 @@ void build_heartbeat(struct Heartbeat *heart, uint32_t term, uint8_t from[], uin
 void build_vote(struct Vote *voteMsg, uint32_t term, uint8_t from[], uint8_t voteFor[], bool voteGranted) {
   voteMsg->type = vote;
   voteMsg->term = term;
-  for (int i = 0; i < 8; ++i)
+  int i = 0;
+  int j = 0;
+  for (i; i < 8; ++i)
     voteMsg->from[i] = from[i];
-  for (int i = 0; i < 8; ++i)
-    voteMsg->voteFor[i] = voteFor[i];
+  for (j; j < 8; ++j)
+    voteMsg->voteFor[j] = voteFor[j];
   voteMsg->voteGranted = voteGranted;
 }
 
@@ -126,7 +139,8 @@ void msg_print(uint32_t currTerm, const uip_ipaddr_t *from, struct Msg *msg) {
   uip_debug_ipaddr_print(from);
   printf(" in term %ld: {type: %d, term: %ld}\n", currTerm, msg->type, msg->term);
   printf("Sender MAC: ");
-  for (int i = 0; i < 8; ++i)
+  int i = 0;
+  for (i; i < 8; ++i)
     printf("%d", msg->from[i]);
   printf("\n");
 }
@@ -146,7 +160,8 @@ void election_print(struct Election *elect) {
 void vote_print(struct Vote *vote) {
   printf("VOTE: {type: %d, term: %ld, voteFor: ",
          vote->type, vote->term);
-  for (int i = 0; i < 8; ++i)
+  int i = 0;
+  for (i; i < 8; ++i)
     printf("%d", vote->voteFor[i]);
   printf(",\n\t voteGranted: %s}\n", vote->voteGranted ? "true" : "false");
 }
