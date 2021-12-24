@@ -6,12 +6,19 @@
 
 #include "contiki.h"
 #include "sys/etimer.h"
-#include "net/ip/uip.h"
-#include "net/ipv6/uip-ds6.h"
+#include "core/net/ip/uip.h"
+#include "core/net/ipv6/uip-ds6.h"
 
-#include "simple-udp.h"
+#include "core/net/ip/simple-udp.h"
+//#include "core/net/ip/simple-udp.c"
+//#include "core/net/ip/tcpip.h"
+//#include "core/net/ip/tcpip.c"
+
+#include "core/net/ip/uip-udp-packet.h"
+// #include "core/net/ip/uip-udp-packet.c"
 #include "sys/timer.h"
-#include "ieee-addr.h"
+#include "cpu/cc26xx-cc13xx/ieee-addr.h"
+//#include "cpu/cc26xx-cc13xx/ieee-addr.c"
 
 #include "raft.h"
 
@@ -42,6 +49,7 @@ receiver(struct simple_udp_connection *c,
   printf("\nGOT MESSAGE\n");
   struct Msg *msg = (struct Msg *)data;
   msg_print(node.term, sender_addr, msg);
+int i = 0;
 
   if (msg->term > node.term) { //got msg with higer term, update term and change to follower state
     node.term = msg->term;
@@ -71,7 +79,8 @@ receiver(struct simple_udp_connection *c,
             printf("Updating votedFor and granting vote.\n");
             printf("elect->from: ");
             //update node.votedFor to sender_addr
-            for (int i = 0; i < 8; ++i) {
+            int i = 0 ;
+            for (i; i < 8; ++i) {
               printf("%d", elect->from[i]);
               node.votedFor[i] = elect->from[i];
               voteMsg.voteFor[i] = elect->from[i];
