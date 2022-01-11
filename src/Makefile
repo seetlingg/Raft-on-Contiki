@@ -1,8 +1,19 @@
 CONTIKI_PROJECT = raft_node
 PROJECT_SOURCEFILES += raft.c
-APPS+=powertrace
-all: $(CONTIKI_PROJECT)
+
+TARGET = sky
+CONTIKI_WITH_IPV6 = 1
+
+
+COMPILERPATH = /usr/bin
+CC = $(COMPILERPATH)/arm-none-eabi-gcc
+OBJCOPY = $(COMPILERPATH)/arm-none-eabi-objcopy
+
+
 CONTIKI = ../..
-CONTIKI_WITH_RIME = 1
-CFLAGS += -DPROJECT_CONF_H=\"project-conf.h\" -g
 include $(CONTIKI)/Makefile.include
+
+contikclean:
+	make clean $(CONTIKI)
+
+all: contikclean $(CONTIKI_PROJECT)
