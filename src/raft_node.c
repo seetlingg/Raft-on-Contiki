@@ -14,10 +14,10 @@
 
 #include "sys/etimer.h"
 
-#include "net/ip/uip.h"
+//#include "net/ip/uip.h"
 
-#include "net/ipv6/uip-ds6.h"
-
+//#include "net/ipv6/uip-ds6.h"
+#include "net/rime/rime.h"
 
 
 #include "simple-udp.h"
@@ -36,6 +36,9 @@
 
 #include <stdint.h>
 
+
+#define BROADCAST_CHANNEL          7      // Channel used for broadcast data transfer
+#define UNICAST_CHANNEL            146    // Channel used for unicast data transfer
 
 
 static struct Raft node;
@@ -56,9 +59,16 @@ static struct Response responseMsg;
 
 
 
-static struct simple_udp_connection broadcast_connection;
+//static struct simple_udp_connection broadcast_connection;
+//for leader
+static const struct broadcast_callbacks broadcast_call = {receiver}; //go to receiver function to execute, function pointer
 
-uip_ipaddr_t addr;
+//for follower
+static const struct unicast_callbacks unicast_callbacks = {receiver};
+static struct broadcast_conn broadcast;
+static struct unicast_conn unicast;
+
+//uip_ipaddr_t addr;
 
 
 
@@ -72,25 +82,15 @@ AUTOSTART_PROCESSES(&raft_node_process);
 
 static void
 
-receiver(struct simple_udp_connection *c,
-
-         const uip_ipaddr_t *sender_addr,
-
-         uint16_t sender_port,
-
-         const uip_ipaddr_t *receiver_addr,
-
-         uint16_t receiver_port,
-
-         const uint8_t *data,
-
-         uint16_t datalen) {
+receiver(struct broadcast_conn *c, const linkaddr_t *from) {
 
   printf("\nGOT MESSAGE\n");
 
-  struct Msg *msg = (struct Msg *)data;
+  struct Heartbeat *msg = (struct Msg *)packetbuf_dataptr();
 
-  msg_print(node.term, sender_addr, msg);
+  //msg_print(node.term, sender_addr, msg);
+  //memcpy(msg, packetbuf_dataptr(), sizeof(struct Heartbeat)); // buffer has the copied data
+
 
   //int i = 0;
 
@@ -119,8 +119,12 @@ receiver(struct simple_udp_connection *c,
         //election
 
         if (msg->type == election) {
+          struct Election *elect = (struct Election *)packetbuf_dataptr();
+          //memcpy(elect, packetbuf_dataptr(), sizeof(struct Election));
 
-          struct Election *elect = (struct Election *)data;
+           //if Election, change
+          //the type and format of message to Election. this casts the type of message (type cast).
+          //memcpy(elect, packetbuf_dataptr(), sizeof(struct Election));
 
           election_print(elect);
 
@@ -140,7 +144,7 @@ receiver(struct simple_udp_connection *c,
 
 
 
-	   unsigned short int nullAddr = 0;
+	       unsigned short int nullAddr = 0;
 
           //uint8_t nullAddr[8] = {0,0,0,0,0,0,0,0};
 
@@ -148,13 +152,13 @@ receiver(struct simple_udp_connection *c,
 
           voteMsg.voteFor == elect->from;
 
-            printf("Updating votedFor and granting vote.\n");
+              printf("Updating votedFor and granting vote.\n");
 
-            printf("elect->from: ");
+              printf("elect->from: ");
 
-            printf("%d", elect->from); //voteFor = elect->from. its correct.
+              printf("%d", elect->from); //voteFor = elect->from. its correct.
 
-            voteMsg.voteGranted = true;
+              voteMsg.voteGranted = true;
 
             //update node.votedFor to sender_addr
 
@@ -170,7 +174,7 @@ receiver(struct simple_udp_connection *c,
 
             
 
-            printf("\n");}
+              printf("\n");}
 
             //voteGranted = true already set
 
@@ -178,19 +182,22 @@ receiver(struct simple_udp_connection *c,
 
           else { //vote was used this term
 
-            printf("Vote has already been used this term.\n");
+             printf("Vote has already been used this term.\n");
 
             //voteGranted = false;
 
-            voteMsg.voteGranted = false;
+              voteMsg.voteGranted = false;
 
           
 
           //send vote
 
-          uip_create_linklocal_allnodes_mcast(&addr);
-
-          simple_udp_sendto(&broadcast_connection, &voteMsg, sizeof(voteMsg), &addr);
+          //uip_create_linklocal_allnodes_mcast(&addr);
+              struct unicast_conn *c = (struct unicast_conn *)broadcast;
+              //simple_udp_sendto(&broadcast_connection, &voteMsg, sizeof(voteMsg), &addr);
+              packetbuf_copyfrom(&voteMsg, sizeof(voteMsg));
+              //broadcast_send(&broadcast);
+              unicast_send(&unicast, elect->from);
 
           }}
 
@@ -198,42 +205,52 @@ receiver(struct simple_udp_connection *c,
 
 	else if (msg->type == heartbeat) {
 
-		struct Heartbeat *heart = (struct Heartbeat *)data;
+		struct Heartbeat *heart = (struct Heartbeat *)packetbuf_dataptr();
+    
+    //memcpy(heart, packetbuf_dataptr(), sizeof(struct Heartbeat));
 
 		heartbeat_print(heart);
 
 		//reset timer
 
 		ctimer_set(&nodeTimeout, node.timeout * CLOCK_SECOND, &timeout_callback, NULL);
-
 		
 
           //try to insert log logic here:
 
-		build_response(&responseMsg, node.prevLogIndex, node.prevLogTerm, heart->value);
 
 			  
 
 		//to insert check for similarity of last entry. requires heartbeat log, rather than heartbeat value.
 
-		   if (msg->term >= node.prevLogTerm && heart->prevLogIndex >= node.prevLogIndex && heart->leaderCommit < node.prevLogIndex) {
+		   if (msg->term >= node.prevLogTerm && heart->prevLogIndex >= node.prevLogIndex 
+        && heart->leaderCommit < node.prevLogIndex) {
 
 		   //will require a for loop here from node.prevLogIndex to heart->leaderCommit
 
-		   	node.log[node.prevLogIndex+1] = heart->value; // to think about this to include log in each heartbeat
+		   	node.log[heart->nextIndex] = heart->value; // to think about this to include log in each heartbeat
         //node.log[node.prevLogIndex+1] = heart->entries[-1];
 
 		   	}
 
 			  
 
-		  else if (msg->term >= node.prevLogTerm && heart->prevLogIndex >= node.prevLogIndex && heart->leaderCommit == node.prevLogIndex) {
+		  else if (msg->term >= node.prevLogTerm && heart->prevLogIndex 
+        >= node.prevLogIndex && heart->leaderCommit == node.prevLogIndex) {
+            build_response(&responseMsg, node.commitIndex, node.currentTerm, 
+      node.prevLogIndex, node.prevLogTerm, heart->value);
+
+
+        struct unicast_conn *c = (struct unicast_conn *)broadcast;
+        packetbuf_copyfrom(&responseMsg, sizeof(responseMsg));
+        unicast_send(&unicast, heart->from);
+
 
 		  	//PLEASE LOOK AT THIS AGAIN, which &addr is it pointing to?
 
-			uip_create_linklocal_allnodes_mcast(&addr);
+			//uip_create_linklocal_allnodes_mcast(&addr);
 
-			simple_udp_sendto(&broadcast_connection, &responseMsg, sizeof(responseMsg), &addr);
+			//simple_udp_sendto(&broadcast_connection, &responseMsg, sizeof(responseMsg), heart->from);
 
 		  }
 
@@ -263,7 +280,8 @@ receiver(struct simple_udp_connection *c,
 
          ctimer_set(&nodeTimeout, node.timeout * CLOCK_SECOND, &timeout_callback, NULL);
 
-          struct Vote *vote = (struct Vote *)data;
+          struct Vote *vote = (struct Vote *)packetbuf_dataptr(); // use memcpy for variable, use typecast for pointer (like here)
+
 
           vote_print(vote);
 
@@ -285,12 +303,19 @@ receiver(struct simple_udp_connection *c,
 
               static struct Heartbeat heart;
 
-              build_heartbeat(&heart, node.term, node.macAddr, node.prevLogIndex,  node.prevLogTerm, 
+              build_heartbeat(&heart, node.term, node.macAddr, node.prevLogIndex, 
+                node.prevLogTerm, node.nextIndex,
                 1, node.leaderCommit); 
 
-              uip_create_linklocal_allnodes_mcast(&addr);
 
-              simple_udp_sendto(&broadcast_connection, &heart, sizeof(heart), &addr);
+              packetbuf_copyfrom(&heart, sizeof(heart));
+              broadcast_send(&broadcast);
+
+
+
+              //uip_create_linklocal_allnodes_mcast(&addr);
+
+              //simple_udp_sendto(&broadcast_connection, &heart, sizeof(heart), &addr);
 
             }
 
@@ -323,8 +348,11 @@ receiver(struct simple_udp_connection *c,
         	static struct Heartbeat heart;
 
         	build_heartbeat(&heart, node.term, node.macAddr, node.prevLogIndex, node.prevLogTerm, 
+            node.nextIndex,
             1, node.leaderCommit); 
-
+            
+            packetbuf_copyfrom(&heart, sizeof(heart));
+            broadcast_send(&broadcast);
 
 
         	printf("LEADER SENDING HEARTBEAT\n");
@@ -333,9 +361,9 @@ receiver(struct simple_udp_connection *c,
 
 
 
-        	uip_create_linklocal_allnodes_mcast(&addr);
+        	//uip_create_linklocal_allnodes_mcast(&addr);
 
-        	simple_udp_sendto(&broadcast_connection, &heart, sizeof(heart), &addr);
+        	//simple_udp_sendto(&broadcast_connection, &heart, sizeof(heart), &addr);
 
         	if (msg->type == respond){
 
@@ -343,21 +371,47 @@ receiver(struct simple_udp_connection *c,
 
                   //vote_print(vote); to include response_print function in raft.c
 
-                  if (responseMsg.valueCheck == heart.value) {
+              if (responseMsg.currentTerm == heart.term && 
+                responseMsg.commitIndex == heart.nextIndex &&
+                responseMsg.valueCheck == heart.value) {
 
-                  	++node.totalCommits;
+              	 ++node.totalCommits;
 
-                  	      
+              	      
 
-                  	if (node.totalCommits == TOTAL_NODES) {   	
+                	if (node.totalCommits >= (TOTAL_NODES/2)) {   	
 
-                  	node.leaderCommit = responseMsg.prevLogIndex; 
+                	node.leaderCommit = responseMsg.prevLogIndex; 
 
-                  	node.totalCommits = 0;
+                	node.totalCommits = 0;
 
-          }		
+                  }		
+              }
 
-	}
+            else if (responseMsg.commitIndex < heart.nextIndex){
+              int patch = 0;
+              patch = responseMsg.commitIndex;
+
+
+              for (patch; patch <responseMsg.commitIndex; patch ++){
+                build_heartbeat(&heart, node.term, node.macAddr, 
+                  node.prevLogIndex, node.prevLogTerm, node.nextIndex,
+                   node.log[patch], node.leaderCommit);
+
+                //to substitute w code that allows one to one sending.
+
+                packetbuf_copyfrom(&heart, sizeof(heart));
+                //broadcast_send(&broadcast);
+                unicast_send(&unicast, msg->from);
+                //uip_create_linklocal_allnodes_mcast(&addr);
+                //simple_udp_sendto(&broadcast_connection, &heart, sizeof(heart), &addr);
+                }
+
+
+
+              }
+
+	           
 
 	
 
@@ -415,11 +469,12 @@ static void timeout_callback(void *ptr) {
 
     build_election(&elect, node.term, node.macAddr, node.lastLogTerm, node.lastLogIndex); 
 
+    packetbuf_copyfrom(&elect, sizeof(elect));
+    broadcast_send(&broadcast);
 
+    //uip_create_linklocal_allnodes_mcast(&addr);
 
-    uip_create_linklocal_allnodes_mcast(&addr);
-
-    simple_udp_sendto(&broadcast_connection, &elect, sizeof(elect), &addr);
+    //simple_udp_sendto(&broadcast_connection, &elect, sizeof(elect), &addr);
 
   }
 
@@ -456,7 +511,8 @@ PROCESS_THREAD(raft_node_process, ev, data) {
   }
 
 
-
+  broadcast_open(&broadcast, BROADCAST_CHANNEL, &broadcast_call);
+  unicast_open(&unicast, UNICAST_CHANNEL, &unicast_callbacks);
   raft_print(&node);
 
 
@@ -465,11 +521,11 @@ PROCESS_THREAD(raft_node_process, ev, data) {
 
 
 
-  simple_udp_register(&broadcast_connection, UDP_PORT,
+  /*simple_udp_register(&broadcast_connection, UDP_PORT,
 
                       NULL, UDP_PORT,
 
-                      receiver);
+                      receiver);*/
 
 
 
@@ -479,13 +535,14 @@ PROCESS_THREAD(raft_node_process, ev, data) {
 
     PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&leaderTimer));
 
-    /*if (node.state == leader) {
+    if (node.state == leader) {
 
       //send heartbeat 
 
       static struct Heartbeat heart;
 
-      build_heartbeat(&heart, node.term, node.macAddr,node.prevLogIndex,  node.prevLogTerm, 1, node.leaderCommit); //add rest of params later
+      build_heartbeat(&heart, node.term, node.macAddr,node.prevLogIndex,  node.prevLogTerm, 
+        1, node.leaderCommit); 
 
 
 
@@ -493,13 +550,16 @@ PROCESS_THREAD(raft_node_process, ev, data) {
 
       heartbeat_print(&heart);
 
+      packetbuf_copyfrom(&heart, sizeof(heart));
+      broadcast_send(&broadcast);
 
 
-      uip_create_linklocal_allnodes_mcast(&addr);
 
-      simple_udp_sendto(&broadcast_connection, &heart, sizeof(heart), &addr);
+      //uip_create_linklocal_allnodes_mcast(&addr);
 
-    }*/
+      //simple_udp_sendto(&broadcast_connection, &heart, sizeof(heart), &addr);
+
+    }
 
   }
 
