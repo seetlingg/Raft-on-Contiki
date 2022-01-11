@@ -122,6 +122,8 @@ struct Heartbeat {
 
   uint8_t value;      //
 
+  uint8_t nextIndex;
+
 
   uint8_t leaderCommit; //
 
@@ -129,7 +131,7 @@ struct Heartbeat {
 
 void build_heartbeat(struct Heartbeat *heart, uint32_t term, unsigned short int from, uint8_t prevLogIndex,
 
-               uint8_t prevLogTerm, uint8_t value, uint8_t leaderCommit);
+               uint8_t prevLogTerm, uint8_t nextIndex, uint8_t value, uint8_t leaderCommit);
 
  
                
@@ -137,16 +139,21 @@ void build_heartbeat(struct Heartbeat *heart, uint32_t term, unsigned short int 
 struct Response {
 
   enum msg_types type;
+  uint8_t commitIndex; 
+  uint8_t currentTerm; 
 
   uint8_t prevLogIndex; // Not sure what to do with these quite yet
-
   uint8_t prevLogTerm;  //
 
   uint8_t valueCheck;   
+  
+
 
 };              
 
-void build_response(struct Response *response, uint8_t prevLogIndex, uint8_t prevLogTerm, uint8_t valueCheck); 
+void build_response(struct Response *response, uint8_t commitIndex, uint8_t currentTerm,
+  uint8_t prevLogIndex, 
+  uint8_t prevLogTerm, uint8_t valueCheck); 
 
 
 
