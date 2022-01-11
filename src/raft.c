@@ -324,6 +324,8 @@ bool mac_compare(uint8_t a[], uint8_t b[]) {
 
 // RAFT MSG Functions
 
+void build_msg(struct Msg *msg, )
+
 void build_election(struct Election *elect, uint32_t term, unsigned short int from, uint8_t lastLogIndex, uint8_t lastLogTerm) {
 
   elect->type = election;
@@ -380,7 +382,7 @@ void build_vote(struct Vote *voteMsg, uint32_t term, unsigned short int from, un
 
 void build_heartbeat(struct Heartbeat *heart, uint32_t term, unsigned short int from, uint8_t prevLogIndex,
 
-               uint8_t prevLogTerm, uint8_t prevValue, uint8_t value, uint8_t leaderCommit) {
+               uint8_t prevLogTerm, uint8_t nextIndex,/*uint8_t prevValue,*/ uint8_t value, uint8_t leaderCommit) {
 
   heart->type = heartbeat;
 
@@ -399,9 +401,9 @@ void build_heartbeat(struct Heartbeat *heart, uint32_t term, unsigned short int 
   heart->prevLogTerm = prevLogTerm;
   //heart->entries[10] = array1[10];
 
-  heart->prevValue = prevValue;
+  //heart->prevValue = prevValue;
   heart->value = value;
-
+  heart->nextIndex = nextIndex;
   
 
   heart->leaderCommit = leaderCommit;
@@ -410,12 +412,15 @@ void build_heartbeat(struct Heartbeat *heart, uint32_t term, unsigned short int 
 
 
 
-void build_response(struct Response *response, uint8_t prevLogIndex, uint8_t prevLogTerm, uint8_t valueCheck) {
+void build_response(struct Response *response, uint8_t commitIndex, uint8_t currentTerm,
+ uint8_t prevLogIndex, 
+  uint8_t prevLogTerm, uint8_t valueCheck) {
 
 response->type = respond;
+response->commitIndex=commitIndex;
+response->currentTerm=currentTerm;
 
 response->prevLogIndex=prevLogIndex;
-
 response->prevLogTerm=prevLogTerm;
 
 response->valueCheck=0;
