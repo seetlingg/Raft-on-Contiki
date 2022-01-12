@@ -38,7 +38,7 @@ struct Raft {
 
   uint32_t currentTerm;
 
-  unsigned short int macAddr;
+  unsigned short int id;
 
   unsigned short int votedFor;
 
@@ -141,7 +141,7 @@ struct Response {
   enum msg_types type;
   uint8_t commitIndex; 
   uint8_t currentTerm; 
-
+unsigned short int from;
   uint8_t prevLogIndex; // Not sure what to do with these quite yet
   uint8_t prevLogTerm;  //
 
@@ -152,6 +152,7 @@ struct Response {
 };              
 
 void build_response(struct Response *response, uint8_t commitIndex, uint8_t currentTerm,
+  unsigned short int from,
   uint8_t prevLogIndex, 
   uint8_t prevLogTerm, uint8_t valueCheck); 
 
@@ -211,11 +212,11 @@ void raft_set_leader(struct Raft *node);
 
 
 
-bool mac_compare(unsigned short int a, unsigned short int b);
+bool id_compare(unsigned short int a, unsigned short int b);
 
 
 
-void msg_print(uint32_t currTerm, const uip_ipaddr_t *from, struct Msg *msg);
+void msg_print(uint32_t currTerm, uint8_t node_id, struct Msg *msg);
 
 void heartbeat_print(struct Heartbeat *heart);
 
