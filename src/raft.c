@@ -10,9 +10,9 @@
 
 #include "contiki.h"
 
-#include "net/ip/uip.h"
+//#include "net/ip/uip.h"
 
-#include "net/ip/uip-debug.h"
+//#include "net/ip/uip-debug.h"
 
 #include "lib/random.h"
 
@@ -50,7 +50,7 @@ void raft_init(struct Raft *node) {
 
   //ieee_addr_cpy_to(node->macAddr, 8);
 
-  node->macAddr = node_id;
+  node->id = node_id;
 
   node->votedFor = 0;
 
@@ -64,7 +64,7 @@ void raft_init(struct Raft *node) {
 
   node->totalVotes = 0;
 
-  node->totalVotes = 0;
+  node->totalCommits = 0;
 
 
 
@@ -264,11 +264,11 @@ void raft_set_leader(struct Raft *node) {
 
 void raft_print(struct Raft *node) {
 
-  printf("NODE: {term: %ld, macAddr: ", node->term);
+  printf("NODE: {term: %ld, id: ", node->term);
 
   //int i = 0;
 
-  printf("macAddr: %d \n", node->macAddr);
+  printf("id: %d \n", node->id);
 
   printf("votedFor: %d \n", node->votedFor);
 
@@ -290,7 +290,7 @@ void raft_print(struct Raft *node) {
 
 
 
-bool mac_compare(unsigned short int a, unsigned short int b) {
+bool id_compare(unsigned short int a, unsigned short int b) {
 
     if (a != b)
 
@@ -324,15 +324,16 @@ bool mac_compare(uint8_t a[], uint8_t b[]) {
 
 // RAFT MSG Functions
 
-void build_msg(struct Msg *msg, )
+void build_msg(struct Msg *msg);
 
-void build_election(struct Election *elect, uint32_t term, unsigned short int from, uint8_t lastLogIndex, uint8_t lastLogTerm) {
+void build_election(struct Election *elect, uint32_t term, unsigned short int from, \
+  uint8_t lastLogIndex, uint8_t lastLogTerm) {
 
   elect->type = election;
 
   elect->term = term;
 
-  elect->from = from;
+  elect->from = node_id;
 
   /*
 
@@ -342,7 +343,7 @@ void build_election(struct Election *elect, uint32_t term, unsigned short int fr
 
     elect->from[i] = from[i];*/
 
-  elect->lastLogIndex = lastLogIndex;
+  elect->lastLogIndex = lastLogIndex;\
 
   elect->lastLogTerm = lastLogTerm; 
 
@@ -352,13 +353,14 @@ void build_election(struct Election *elect, uint32_t term, unsigned short int fr
 
 
 
-void build_vote(struct Vote *voteMsg, uint32_t term, unsigned short int from, unsigned short int voteFor, bool voteGranted) {
+void build_vote(struct Vote *voteMsg, uint32_t term, unsigned short int from,\
+  unsigned short int voteFor, bool voteGranted) {
 
   voteMsg->type = vote;
 
   voteMsg->term = term;
 
-  voteMsg->from = from;
+  voteMsg->from = node_id;
 
   voteMsg->voteFor = voteFor;
 
@@ -380,7 +382,8 @@ void build_vote(struct Vote *voteMsg, uint32_t term, unsigned short int from, un
 
 
 
-void build_heartbeat(struct Heartbeat *heart, uint32_t term, unsigned short int from, uint8_t prevLogIndex,
+void build_heartbeat(struct Heartbeat *heart, uint32_t term, 
+  unsigned short int from, uint8_t prevLogIndex,
 
                uint8_t prevLogTerm, uint8_t nextIndex,/*uint8_t prevValue,*/ uint8_t value, uint8_t leaderCommit) {
 
@@ -388,7 +391,7 @@ void build_heartbeat(struct Heartbeat *heart, uint32_t term, unsigned short int 
 
   heart->term = term;
 
-  heart->from = from;
+  heart->from = node_id;
 
   /*int i = 0;
 
@@ -412,14 +415,15 @@ void build_heartbeat(struct Heartbeat *heart, uint32_t term, unsigned short int 
 
 
 
-void build_response(struct Response *response, uint8_t commitIndex, uint8_t currentTerm,
+void build_response(struct Response *response, uint8_t commitIndex, 
+  uint8_t currentTerm, unsigned short int from,
  uint8_t prevLogIndex, 
   uint8_t prevLogTerm, uint8_t valueCheck) {
 
 response->type = respond;
 response->commitIndex=commitIndex;
 response->currentTerm=currentTerm;
-
+response->from = node_id;
 response->prevLogIndex=prevLogIndex;
 response->prevLogTerm=prevLogTerm;
 
@@ -435,11 +439,11 @@ response->valueCheck=0;
 
 
 
-void msg_print(uint32_t currTerm, const uip_ipaddr_t *from, struct Msg *msg) {
+void msg_print(uint32_t currTerm, uint8_t node_id, struct Msg *msg) {
 
   printf("MSG from ");
 
-  uip_debug_ipaddr_print(from);
+  //uip_debug_ipaddr_print(from);
 
   printf(" in term %ld: {type: %d, term: %ld}\n", currTerm, msg->type, msg->term);
 
