@@ -18,9 +18,10 @@
 
 //#include "net/ipv6/uip-ds6.h"
 #include "net/rime/rime.h"
+#include "dev/cc2420/cc2420.h"
 
 
-#include "simple-udp.h"
+//#include "simple-udp.h"
 
 #include "sys/timer.h"
 
@@ -35,6 +36,7 @@
 #include <stdio.h>
 
 #include <stdint.h>
+//#include <stdlib.h>
 
 
 #define BROADCAST_CHANNEL          7      // Channel used for broadcast data transfer
@@ -56,7 +58,7 @@ static struct Vote voteMsg;
 static struct Response responseMsg;
 
 
-
+static void receiver(struct broadcast_conn *c, const linkaddr_t *from);
 
 
 //static struct simple_udp_connection broadcast_connection;
@@ -74,9 +76,11 @@ static struct unicast_conn unicast;
 
 /*---------------------------------------------------------------------------*/
 
-PROCESS(raft_node_process, "UDP broadcast raft node process");
+//PROCESS(raft_node_process, "UDP broadcast raft node process");
+PROCESS(simple_comm_process, "Simple communication process");
+PROCESS(unicast_process, "unicast process");
 
-AUTOSTART_PROCESSES(&raft_node_process);
+AUTOSTART_PROCESSES(&simple_comm_process, &unicast_process);
 
 /*---------------------------------------------------------------------------*/
 
@@ -140,7 +144,7 @@ receiver(struct broadcast_conn *c, const linkaddr_t *from) {
 
           //static struct Vote voteMsg;
 
-          build_vote(&voteMsg, node.term, node.macAddr, 0, false);
+          build_vote(&voteMsg, node.term, node.id, 0, false);
 
 
 
@@ -148,7 +152,7 @@ receiver(struct broadcast_conn *c, const linkaddr_t *from) {
 
           //uint8_t nullAddr[8] = {0,0,0,0,0,0,0,0};
 
-          if (mac_compare(nullAddr, node.votedFor) && (msg->term >= node.term) && (elect->lastLogIndex >= node.prevLogIndex)) { //vote has not been used
+          if (id_compare(nullAddr, node.votedFor) && (msg->term >= node.term) && (elect->lastLogIndex >= node.prevLogIndex)) { //vote has not been used
 
           voteMsg.voteFor == elect->from;
 
@@ -193,11 +197,11 @@ receiver(struct broadcast_conn *c, const linkaddr_t *from) {
           //send vote
 
           //uip_create_linklocal_allnodes_mcast(&addr);
-              struct unicast_conn *c = (struct unicast_conn *)broadcast;
+              //struct unicast_conn *c = (struct unicast_conn *)broadcast;
               //simple_udp_sendto(&broadcast_connection, &voteMsg, sizeof(voteMsg), &addr);
               packetbuf_copyfrom(&voteMsg, sizeof(voteMsg));
               //broadcast_send(&broadcast);
-              unicast_send(&unicast, elect->from);
+              unicast_send(&unicast, &(elect->from)); //check what is const union linkaddr_t, seems like only unicast has this issue
 
           }}
 
@@ -237,13 +241,13 @@ receiver(struct broadcast_conn *c, const linkaddr_t *from) {
 
 		  else if (msg->term >= node.prevLogTerm && heart->prevLogIndex 
         >= node.prevLogIndex && heart->leaderCommit == node.prevLogIndex) {
-            build_response(&responseMsg, node.commitIndex, node.currentTerm, 
+            build_response(&responseMsg, node.commitIndex, node.currentTerm, node.id, 
       node.prevLogIndex, node.prevLogTerm, heart->value);
 
 
-        struct unicast_conn *c = (struct unicast_conn *)broadcast;
+        //struct unicast_conn *c = (struct unicast_conn *)broadcast;
         packetbuf_copyfrom(&responseMsg, sizeof(responseMsg));
-        unicast_send(&unicast, heart->from);
+        unicast_send(&unicast, &(heart->from)); //check what is const union linkaddr_t, seems like only unicast has this issue
 
 
 		  	//PLEASE LOOK AT THIS AGAIN, which &addr is it pointing to?
@@ -289,7 +293,7 @@ receiver(struct broadcast_conn *c, const linkaddr_t *from) {
 
           //vote is for this node
 
-          if (mac_compare(vote->voteFor, node.macAddr) && vote->voteGranted) {
+          if (id_compare(vote->voteFor, node.id) && vote->voteGranted) {
 
             //increment vote count
 
@@ -303,7 +307,7 @@ receiver(struct broadcast_conn *c, const linkaddr_t *from) {
 
               static struct Heartbeat heart;
 
-              build_heartbeat(&heart, node.term, node.macAddr, node.prevLogIndex, 
+              build_heartbeat(&heart, node.term, node.id, node.prevLogIndex, 
                 node.prevLogTerm, node.nextIndex,
                 1, node.leaderCommit); 
 
@@ -347,7 +351,7 @@ receiver(struct broadcast_conn *c, const linkaddr_t *from) {
 
         	static struct Heartbeat heart;
 
-        	build_heartbeat(&heart, node.term, node.macAddr, node.prevLogIndex, node.prevLogTerm, 
+        	build_heartbeat(&heart, node.term, node.id, node.prevLogIndex, node.prevLogTerm, 
             node.nextIndex,
             1, node.leaderCommit); 
             
@@ -367,8 +371,7 @@ receiver(struct broadcast_conn *c, const linkaddr_t *from) {
 
         	if (msg->type == respond){
 
-                  struct Response *response = (struct Response *)data;
-
+                  struct Response *response = (struct Response *)packetbuf_dataptr();
                   //vote_print(vote); to include response_print function in raft.c
 
               if (responseMsg.currentTerm == heart.term && 
@@ -394,7 +397,7 @@ receiver(struct broadcast_conn *c, const linkaddr_t *from) {
 
 
               for (patch; patch <responseMsg.commitIndex; patch ++){
-                build_heartbeat(&heart, node.term, node.macAddr, 
+                build_heartbeat(&heart, node.term, node.id, 
                   node.prevLogIndex, node.prevLogTerm, node.nextIndex,
                    node.log[patch], node.leaderCommit);
 
@@ -402,7 +405,7 @@ receiver(struct broadcast_conn *c, const linkaddr_t *from) {
 
                 packetbuf_copyfrom(&heart, sizeof(heart));
                 //broadcast_send(&broadcast);
-                unicast_send(&unicast, msg->from);
+                unicast_send(&unicast, &(msg->from)); //check what is const union linkaddr_t, seems like only unicast has this issue
                 //uip_create_linklocal_allnodes_mcast(&addr);
                 //simple_udp_sendto(&broadcast_connection, &heart, sizeof(heart), &addr);
                 }
@@ -467,11 +470,11 @@ static void timeout_callback(void *ptr) {
 
     static struct Election elect;
 
-    build_election(&elect, node.term, node.macAddr, node.lastLogTerm, node.lastLogIndex); 
+    build_election(&elect, node.term, node.id, node.lastLogTerm, node.lastLogIndex); 
 
     packetbuf_copyfrom(&elect, sizeof(elect));
     broadcast_send(&broadcast);
-
+\
     //uip_create_linklocal_allnodes_mcast(&addr);
 
     //simple_udp_sendto(&broadcast_connection, &elect, sizeof(elect), &addr);
@@ -486,14 +489,29 @@ static void timeout_callback(void *ptr) {
 
 }
 
+
+PROCESS_THREAD(unicast_process, ev, data)
+{ 
+  PROCESS_BEGIN();
+  //SENSORS_ACTIVATE(button_sensor);
+    for (;;) {
+        PROCESS_WAIT_EVENT();
+        /*if (ev == sensors_event && data == &button_sensor) {
+            //printf("A button activated; interrupt\n");
+        }*/
+        
+  }
+  PROCESS_END();
+}
+
 /*---------------------------------------------------------------------------*/
 
-PROCESS_THREAD(raft_node_process, ev, data) {
+PROCESS_THREAD(simple_comm_process, ev, data) {
 
   static struct etimer leaderTimer;
 
 
-
+  PROCESS_EXITHANDLER(broadcast_close(&broadcast);)
   PROCESS_BEGIN();
 
 
@@ -541,7 +559,8 @@ PROCESS_THREAD(raft_node_process, ev, data) {
 
       static struct Heartbeat heart;
 
-      build_heartbeat(&heart, node.term, node.macAddr,node.prevLogIndex,  node.prevLogTerm, 
+      build_heartbeat(&heart, node.term, node.id,node.prevLogIndex,  node.prevLogTerm, 
+        node.nextIndex,
         1, node.leaderCommit); 
 
 
