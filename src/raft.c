@@ -108,9 +108,9 @@ void raft_init(struct Raft *node) {
 
 
   int j = 0;
-  for (j; j < 10; ++j)
+  for (j; j < 10; ++j) {
 
-    node->entries[j] = 0;
+    node->entries[j] = 0; }
 
   node->leaderCommit = 0;
 
@@ -150,50 +150,6 @@ uint8_t get_timeout() {
 
 
 
-/*
-
-void raft_value_chosen_this_round(uint8_t learned_values){
-
-if (values_chosen_this_round) {
-
-	
-
-}
-
-}
-
-*/
-
-/*
-
-void multipaxos_report_values_chosen_this_round(multipaxos_value_t learned_values) {
-
-  if (values_chosen_this_round) {
-
-    uint8_t i;
-
-    for (i = 0; i < MULTIPAXOS_PKT_SIZE; ++i) {
-
-      learned_values[i] = multipaxos_state.learner.learned_values[(multipaxos_state.learner.last_round - MULTIPAXOS_PKT_SIZE + 1 + i) % MULTIPAXOS_LOG_SIZE];
-
-    }
-
-  } else {
-
-    uint8_t i;
-
-    for (i = 0; i < MULTIPAXOS_PKT_SIZE; ++i) {
-
-      learned_values[i] = 0;
-
-    }
-
-  }
-
-}*/
-
-
-
 void raft_set_follower(struct Raft *node) {
 
   node->state = follower;
@@ -212,7 +168,7 @@ void raft_set_follower(struct Raft *node) {
 
   leds_off(LEDS_GREEN);
 
-  printf("Set State: Follower");
+  printf("Set State: Follower \n");
 
   raft_print(node);
 
@@ -236,7 +192,7 @@ void raft_set_candidate(struct Raft *node) {
 
   leds_on(LEDS_GREEN);
 
-  printf("Set State: Candidate");
+  printf("Set State: Candidate \n");
 
   raft_print(node);
 
@@ -252,7 +208,7 @@ void raft_set_leader(struct Raft *node) {
 
   leds_off(LEDS_RED);
 
-  printf("Set State: Leader");
+  printf("Set State: Leader \n");
 
   raft_print(node);
 
@@ -264,13 +220,13 @@ void raft_set_leader(struct Raft *node) {
 
 void raft_print(struct Raft *node) {
 
-  printf("NODE: {term: %ld, id: ", node->term);
+  printf("NODE: {term: %ld, ", node->term);
 
   //int i = 0;
 
-  printf("id: %d \n", node->id);
+  printf("id: %d, ", node->id);
 
-  printf("votedFor: %d \n", node->votedFor);
+  printf("votedFor: %d, ", node->votedFor);
 
   /*
 
@@ -284,7 +240,13 @@ void raft_print(struct Raft *node) {
 
     printf("%d", node->votedFor[i]); */
 
-  printf(",\n\t timeout: %d, state: %d, totalVotes: %d}\n", node->timeout, node->state, node->totalVotes);
+  printf("timeout: %d, state: %d, totalVotes: %d}\n",\
+   node->timeout, node->state, node->totalVotes);
+ /* printf("totalCommits: %d, commitIndex: %d, lastApplied: %d, nextIndex, %d", node->totalCommits, \
+    node->commitIndex, node->lastApplied, node->nextIndex);
+  printf("matchIndex: %d, lastLogIndex: %d, lastLogTerm: %d, prevLogIndex: %d, ", \
+    node->matchIndex, node->lastLogIndex, node->lastLogTerm, node->prevLogIndex);
+  printf("prevLogTerm: %d, leaderCommit: %d \n", node->prevLogTerm, node->leaderCommit); */
 
 }
 
@@ -330,6 +292,7 @@ void build_election(struct Election *elect, uint32_t term, unsigned short int fr
   uint8_t lastLogIndex, uint8_t lastLogTerm) {
 
   elect->type = election;
+  elect->bType = broadcast_msg;
 
   elect->term = term;
 
@@ -357,6 +320,7 @@ void build_vote(struct Vote *voteMsg, uint32_t term, unsigned short int from,\
   unsigned short int voteFor, bool voteGranted) {
 
   voteMsg->type = vote;
+  voteMsg->bType = unicast_msg;
 
   voteMsg->term = term;
 
@@ -388,6 +352,7 @@ void build_heartbeat(struct Heartbeat *heart, uint32_t term,
                uint8_t prevLogTerm, uint8_t nextIndex,/*uint8_t prevValue,*/ uint8_t value, uint8_t leaderCommit) {
 
   heart->type = heartbeat;
+  heart->bType = broadcast_msg;
 
   heart->term = term;
 
@@ -421,6 +386,7 @@ void build_response(struct Response *response, uint8_t commitIndex,
   uint8_t prevLogTerm, uint8_t valueCheck) {
 
 response->type = respond;
+response->bType = unicast_msg;
 response->commitIndex=commitIndex;
 response->currentTerm=currentTerm;
 response->from = node_id;
@@ -441,15 +407,15 @@ response->valueCheck=0;
 
 void msg_print(uint32_t currTerm, uint8_t node_id, struct Msg *msg) {
 
-  printf("MSG from ");
+  printf("MSG from \n");
 
+  printf("Sender ID: ");
+
+  printf("%d", msg->from);  
   //uip_debug_ipaddr_print(from);
 
   printf(" in term %ld: {type: %d, term: %ld}\n", currTerm, msg->type, msg->term);
 
-  printf("Sender MAC: ");
-
-  printf("%d", msg->from);  
 
   /*
 
@@ -467,13 +433,14 @@ void msg_print(uint32_t currTerm, uint8_t node_id, struct Msg *msg) {
 
 void heartbeat_print(struct Heartbeat *heart) {
 
-  printf("HEARTBEAT: {type: %d, term: %ld", heart->type, heart->term);
+
+  printf("HEARTBEAT: {type: %d, term: %ld, ", heart->type, heart->term);
 
   // uip_debug_ipaddr_print(&heart->leaderId);
 
-  printf(", prevLogIndex: %d, prevLogTerm: %d, leaderCommit: %d \n entries:",
+  printf("nextIndex: %d, prevLogIndex: %d, prevLogTerm: %d, leaderCommit: %d} \n ",
 
-         heart->prevLogIndex, heart->prevLogTerm, heart->leaderCommit);
+         heart->nextIndex, heart->prevLogIndex, heart->prevLogTerm, heart->leaderCommit);
     /*
 
   int i = 0;
@@ -489,8 +456,9 @@ void heartbeat_print(struct Heartbeat *heart) {
 
 
 void election_print(struct Election *elect) {
+  //printf("BROADCAST MESSAGE SENT \n");
 
-  printf("ELECTION: {type: %d, term: %ld, lastLogIndex: %d, lastLogTerm: %d}\n",
+  printf("ELECTION CALLED: {type: %d, term: %ld, lastLogIndex: %d, lastLogTerm: %d}\n",
 
          elect->type, elect->term, elect->lastLogIndex, elect->lastLogTerm);
 
@@ -499,8 +467,9 @@ void election_print(struct Election *elect) {
 
 
 void vote_print(struct Vote *vote) {
+  //printf("UNICAST MESSAGE SENT \n");
 
-  printf("VOTE: {type: %d, term: %ld, voteFor: ",
+  printf("VOTED FOR ELECTION: {type: %d, term: %ld, voteFor: ",
 
          vote->type, vote->term);
 
@@ -518,5 +487,31 @@ void vote_print(struct Vote *vote) {
 
 }
 
+void response_print(struct Response *response){
+  //printf("UNICAST MESSAGE SENT \n");
+  printf("RESPONSE: {commitIndex: %d, currentTerm: %d, from: %d, prevLogIndex: %d, \
+    prevLogTerm: %d, valueCheck: %d} \n", response->commitIndex, response->currentTerm, \
+    response->from, response->prevLogIndex,\
+    response->prevLogTerm, response->valueCheck);
+}
+
+
+void heart_broadcast_print(struct Heartbeat *heart, struct Raft *node){
+  if (heart->bType == broadcast_msg && heart->from == node->id) {
+    printf("HEART BROADCAST MESSAGE SENT \n");
+  }
+  else if (heart->bType == broadcast_msg && heart->from != node->id) {
+    printf("HEART BROADCAST MESSAGE RECEIVED \n");
+  }
+  else if (heart->bType == unicast_msg && heart->from == node->id) {
+    printf("HEART UNICAST MESSAGE SENT \n");
+  }
+  else if (heart->bType == unicast_msg && heart->from != node->id) {
+    printf("HEART UNICAST MESSAGE RECEIVED \n");
+  }
+  else{
+    printf("Oh dear, unknown communication \n");
+  }
+}
 
 
