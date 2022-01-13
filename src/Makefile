@@ -1,5 +1,7 @@
 CONTIKI_PROJECT = raft_node
 PROJECT_SOURCEFILES += raft.c
+CFLAGS += -DPROJECT_CONF_H=\"project-conf.h\"
+
 
 TARGET = sky
 CONTIKI_WITH_RIME = 1
