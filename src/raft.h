@@ -20,7 +20,7 @@
 
 #define LEADER_SEND_INTERVAL (MIN_TIMEOUT / 2)
 
-#define TOTAL_NODES 2 //total number of nodes in network
+#define TOTAL_NODES 3 //total number of nodes in network
 
 typedef enum {false = 0, true = !false} bool;
 
@@ -29,6 +29,7 @@ typedef enum {false = 0, true = !false} bool;
 enum states {follower, candidate, leader};
 
 enum msg_types {heartbeat, election, vote, respond};
+enum broadcast_types {unicast_msg, broadcast_msg};
 
 
 
@@ -97,6 +98,7 @@ struct Raft {
 struct Msg {
 
   enum msg_types type;
+  enum broadcast_types bType;
 
   uint32_t term;
 
@@ -111,6 +113,8 @@ struct Msg {
 struct Heartbeat {
 
   enum msg_types type;
+
+  enum broadcast_types bType;
 
   uint32_t term;
 
@@ -139,9 +143,10 @@ void build_heartbeat(struct Heartbeat *heart, uint32_t term, unsigned short int 
 struct Response {
 
   enum msg_types type;
+  enum broadcast_types bType;
   uint8_t commitIndex; 
   uint8_t currentTerm; 
-unsigned short int from;
+  unsigned short int from;
   uint8_t prevLogIndex; // Not sure what to do with these quite yet
   uint8_t prevLogTerm;  //
 
@@ -165,6 +170,7 @@ void build_response(struct Response *response, uint8_t commitIndex, uint8_t curr
 struct Election {
 
   enum msg_types type;
+  enum broadcast_types bType;
 
   uint32_t term;
 
@@ -185,6 +191,7 @@ void build_election(struct Election *elect, uint32_t term, unsigned short int fr
 struct Vote {
 
   enum msg_types type;
+  enum broadcast_types bType;
 
   uint32_t term;
 
@@ -223,7 +230,8 @@ void heartbeat_print(struct Heartbeat *heart);
 void election_print(struct Election *elect);
 
 void vote_print(struct Vote *vote);
-
+void response_print(struct Response *response);
+void heart_broadcast_print(struct Heartbeat *heart, struct Raft *node);
 
 
 void call_election(struct Raft *node);
