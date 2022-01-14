@@ -179,6 +179,7 @@ void raft_set_follower(struct Raft *node) {
 void raft_set_candidate(struct Raft *node) {
 
   node->state = candidate;
+  //node->id = id;
 
   //vote for self
 
@@ -466,15 +467,12 @@ void election_print(struct Election *elect) {
 
 
 
-void vote_print(struct Vote *vote) {
+void vote_print(struct Vote *vote) {\
   //printf("UNICAST MESSAGE SENT \n");
 
-  printf("VOTED FOR ELECTION: {type: %d, term: %ld, voteFor: ",
+  printf("VOTED FOR ELECTION: {type: %d, term: %ld, voteFor: %d,",
 
-         vote->type, vote->term);
-
-  printf("%d", vote->voteFor);
-
+         vote->type, vote->term, vote->voteFor);
   /*
 
   int i = 0;
@@ -483,7 +481,7 @@ void vote_print(struct Vote *vote) {
 
     printf("%d", vote->voteFor[i]);*/
 
-  printf(",\n\t voteGranted: %s}\n", vote->voteGranted ? "true" : "false");
+  printf("voteGranted: %s}\n", vote->voteGranted ? "true" : "false");
 
 }
 
@@ -496,18 +494,18 @@ void response_print(struct Response *response){
 }
 
 
-void heart_broadcast_print(struct Heartbeat *heart, struct Raft *node){
-  if (heart->bType == broadcast_msg && heart->from == node->id) {
-    printf("HEART BROADCAST MESSAGE SENT \n");
+void broadcast_print(struct Msg *msg, struct Raft *node){
+  if (msg->bType == broadcast_msg && msg->from == node->id) {
+    printf("BROADCAST MESSAGE SENT \n");
   }
-  else if (heart->bType == broadcast_msg && heart->from != node->id) {
-    printf("HEART BROADCAST MESSAGE RECEIVED \n");
+  else if (msg->bType == broadcast_msg && msg->from != node->id) {
+    printf("BROADCAST MESSAGE RECEIVED \n");
   }
-  else if (heart->bType == unicast_msg && heart->from == node->id) {
-    printf("HEART UNICAST MESSAGE SENT \n");
+  else if (msg->bType == unicast_msg && msg->from == node->id) {
+    printf("UNICAST MESSAGE SENT \n");
   }
-  else if (heart->bType == unicast_msg && heart->from != node->id) {
-    printf("HEART UNICAST MESSAGE RECEIVED \n");
+  else if (msg->bType == unicast_msg && msg->from != node->id) {
+    printf("UNICAST MESSAGE RECEIVED \n");
   }
   else{
     printf("Oh dear, unknown communication \n");
