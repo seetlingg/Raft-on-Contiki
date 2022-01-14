@@ -58,17 +58,18 @@ static struct Vote voteMsg;
 static struct Response responseMsg;
 
 
-static void receiver(struct broadcast_conn *c, const linkaddr_t *from);
+static void broadcast_recv(struct broadcast_conn *c, const linkaddr_t *from);
+//static void unicast_recv(struct unicast_conn *c, const linkaddr_t *from);
 
 
 //static struct simple_udp_connection broadcast_connection;
-//for leader
-static const struct broadcast_callbacks broadcast_call = {receiver}; //go to receiver function to execute, function pointer
+//for leader & candidate
+static const struct broadcast_callbacks broadcast_call = {broadcast_recv}; //go to receiver function to execute, function pointer
 
 //for follower
-static const struct unicast_callbacks unicast_callbacks = {receiver};
+//static const struct unicast_callbacks unicast_callbacks = {broadcast_recv};
 static struct broadcast_conn broadcast;
-static struct unicast_conn unicast;
+//static struct unicast_conn unicast;
 
 //uip_ipaddr_t addr;
 
@@ -76,41 +77,44 @@ static struct unicast_conn unicast;
 
 /*---------------------------------------------------------------------------*/
 
-//PROCESS(raft_node_process, "UDP broadcast raft node process");
-PROCESS(simple_comm_process, "Simple communication process");
-PROCESS(unicast_process, "unicast process");
+PROCESS(raft_node_process, "Broadcast and unicast raft node process");
+//PROCESS(simple_comm_process, "Simple communication process");
+//PROCESS(unicast_process, "unicast process");
+//PROCESS(unicast_process, "unicast process");
 
-AUTOSTART_PROCESSES(&simple_comm_process, &unicast_process);
+AUTOSTART_PROCESSES(&raft_node_process);
 
 /*---------------------------------------------------------------------------*/
 
 static void
+\
+broadcast_recv(struct broadcast_conn *c, const linkaddr_t *from) {
 
-receiver(struct broadcast_conn *c, const linkaddr_t *from) {
+  //printf("\nGOT MESSAGE\n");
 
-  printf("\nGOT MESSAGE\n");
-
-  struct Heartbeat *msg = (struct Msg *)packetbuf_dataptr();
+  struct Msg *msg = (struct Msg *)packetbuf_dataptr();
+  broadcast_print(msg,&node);
 
   //msg_print(node.term, sender_addr, msg);
   //memcpy(msg, packetbuf_dataptr(), sizeof(struct Heartbeat)); // buffer has the copied data
 
 
   //int i = 0;
-
-  if (msg->term > node.term) { //got msg with higher term, update term and change to follower state
+  
+/*\\
+  if (msg->term > node.term && !id_compare(msg->from, node.id)) { //got msg with higher term, update term and change to follower state
 
     node.term = msg->term;
 
-    raft_set_follower(&node);
+    //raft_set_follower(&node);
 
   }
 
-  else if (msg->term < node.term) { //ignore terms less than node term
+  else if (msg->term <= node.term) { //ignore terms less than node term
 
     return;
 
-  }
+  }*/
 
 
 
@@ -129,6 +133,7 @@ receiver(struct broadcast_conn *c, const linkaddr_t *from) {
            //if Election, change
           //the type and format of message to Election. this casts the type of message (type cast).
           //memcpy(elect, packetbuf_dataptr(), sizeof(struct Election));
+          printf("ELECTION BROADCAST MESSAGE RECEIVED BY FOLLLOWER \n");
 
           election_print(elect);
 
@@ -152,17 +157,18 @@ receiver(struct broadcast_conn *c, const linkaddr_t *from) {
 
           //uint8_t nullAddr[8] = {0,0,0,0,0,0,0,0};
 
-          if (id_compare(nullAddr, node.votedFor) && (msg->term >= node.term) && (elect->lastLogIndex >= node.prevLogIndex)) { //vote has not been used
+          if (id_compare(nullAddr, node.votedFor) && (msg->term >= node.term) \
+          && (elect->lastLogIndex >= node.prevLogIndex)) { //vote has not been used
 
-          voteMsg.voteFor == elect->from;
+              voteMsg.voteFor = elect->from;
 
-              printf("Updating votedFor and granting vote.\n");
+              printf("VOTE GRANTED! \t");
 
-              printf("elect->from: ");
+              printf("voteFor: %d \n", voteMsg.voteFor);
 
-              printf("%d", elect->from); //voteFor = elect->from. its correct.
 
               voteMsg.voteGranted = true;
+            }
 
             //update node.votedFor to sender_addr
 
@@ -178,7 +184,7 @@ receiver(struct broadcast_conn *c, const linkaddr_t *from) {
 
             
 
-              printf("\n");}
+              //printf("\n");}
 
             //voteGranted = true already set
 
@@ -186,24 +192,28 @@ receiver(struct broadcast_conn *c, const linkaddr_t *from) {
 
           else { //vote was used this term
 
-             printf("Vote has already been used this term.\n");
+             printf("VOTE NOT GRANTED \n");
 
             //voteGranted = false;
 
               voteMsg.voteGranted = false;
 
-          
+             
 
-          //send vote
+          }
+        linkaddr_t bufferId = {{elect->from}};
+    
 
-          //uip_create_linklocal_allnodes_mcast(&addr);
-              //struct unicast_conn *c = (struct unicast_conn *)broadcast;
-              //simple_udp_sendto(&broadcast_connection, &voteMsg, sizeof(voteMsg), &addr);
-              packetbuf_copyfrom(&voteMsg, sizeof(voteMsg));
-              //broadcast_send(&broadcast);
-              unicast_send(&unicast, &(elect->from)); //check what is const union linkaddr_t, seems like only unicast has this issue
-
-          }}
+    //send vote\cast_conn *)broadcast;
+        //simple_udp_sendto(&broadcast_connection, &voteMsg, sizeof(voteMsg), &addr);
+        packetbuf_copyfrom(&voteMsg, sizeof(voteMsg));
+        packetbuf_set_addr(PACKETBUF_ADDR_RECEIVER, &(bufferId));
+    
+        //broadcast_send(&broadcast);
+        broadcast_send(&broadcast); //check what is const union linkaddr_t, seems like only unicast has this issue
+        printf("VOTE UNICAST MESSAGE SENT TO CANDIDATE\n");
+        vote_print(&voteMsg);
+        }
 
         //heartbeat
 
@@ -212,12 +222,15 @@ receiver(struct broadcast_conn *c, const linkaddr_t *from) {
 		struct Heartbeat *heart = (struct Heartbeat *)packetbuf_dataptr();
     
     //memcpy(heart, packetbuf_dataptr(), sizeof(struct Heartbeat));
+    printf("HEARTBEAT BROADCAST RECEIVED BY FOLLOWER \n");
 
 		heartbeat_print(heart);
 
 		//reset timer
 
 		ctimer_set(&nodeTimeout, node.timeout * CLOCK_SECOND, &timeout_callback, NULL);
+    node.votedFor = 0;
+    
 		
 
           //try to insert log logic here:
@@ -228,57 +241,48 @@ receiver(struct broadcast_conn *c, const linkaddr_t *from) {
 		//to insert check for similarity of last entry. requires heartbeat log, rather than heartbeat value.
 
 		   if (msg->term >= node.prevLogTerm && heart->prevLogIndex >= node.prevLogIndex 
-        && heart->leaderCommit < node.prevLogIndex) {
+        && heart->leaderCommit <= node.prevLogIndex) {
 
 		   //will require a for loop here from node.prevLogIndex to heart->leaderCommit
-
+        printf("HEARTBEAT VALUE ACCEPTED BY FOLLOWER \n");
 		   	node.log[heart->nextIndex] = heart->value; // to think about this to include log in each heartbeat
         //node.log[node.prevLogIndex+1] = heart->entries[-1];
+        node.currentTerm = msg->term;
+        node.term = msg->term;
+        node.prevLogTerm = msg->term;
+        node.prevLogIndex = heart->nextIndex;\
+        
+        build_response(&responseMsg, node.commitIndex, node.currentTerm, node.id, \
+      node.prevLogIndex, node.prevLogTerm, heart->value);
+
+        linkaddr_t bufferId = {{heart->from}};
+        //struct unicast_conn *c = (struct unicast_conn *)broadcast;
+        packetbuf_copyfrom(&responseMsg, sizeof(responseMsg));
+        packetbuf_set_addr(PACKETBUF_ADDR_RECEIVER, &(bufferId));
+
+        printf("ACK UNICAST SENT BY FOLLOWER TO LEADER\n");
+        response_print(&responseMsg);
+        //broadcast_send(&broadcast);
+        broadcast_send(&broadcast); 
 
 		   	}
 
-			  
-
-		  else if (msg->term >= node.prevLogTerm && heart->prevLogIndex 
-        >= node.prevLogIndex && heart->leaderCommit == node.prevLogIndex) {
-            build_response(&responseMsg, node.commitIndex, node.currentTerm, node.id, 
-      node.prevLogIndex, node.prevLogTerm, heart->value);
-
-
-        //struct unicast_conn *c = (struct unicast_conn *)broadcast;
-        packetbuf_copyfrom(&responseMsg, sizeof(responseMsg));
-        unicast_send(&unicast, &(heart->from)); //check what is const union linkaddr_t, seems like only unicast has this issue
-
-
-		  	//PLEASE LOOK AT THIS AGAIN, which &addr is it pointing to?
-
-			//uip_create_linklocal_allnodes_mcast(&addr);
-
-			//simple_udp_sendto(&broadcast_connection, &responseMsg, sizeof(responseMsg), heart->from);
-
-		  }
-
-		  
-
-		  }
 
     
 
-        else {
+        /*else {
 
         raft_set_candidate(&node);
 
-        }
+        }*/
 
-      }
+      }}
 
       break;
 
     case candidate:
 
       {//vote response
-
-      
 
         if (msg->type == vote) {
 
@@ -287,6 +291,7 @@ receiver(struct broadcast_conn *c, const linkaddr_t *from) {
           struct Vote *vote = (struct Vote *)packetbuf_dataptr(); // use memcpy for variable, use typecast for pointer (like here)
 
 
+          printf("VOTE UNICAST MESSAGE RECEIVED BY CANDIDATE \n");
           vote_print(vote);
 
 
@@ -296,10 +301,12 @@ receiver(struct broadcast_conn *c, const linkaddr_t *from) {
           if (id_compare(vote->voteFor, node.id) && vote->voteGranted) {
 
             //increment vote count
+            printf("+1 VOTE \n");
 
             ++node.totalVotes;
 
             if (node.totalVotes > (TOTAL_NODES / 2)) { //if vote count is majority, change to leader & send heartbeat
+              printf("QUORUM MET, SET NODE AS LEADER \n");
 
               raft_set_leader(&node);
 
@@ -313,6 +320,9 @@ receiver(struct broadcast_conn *c, const linkaddr_t *from) {
 
 
               packetbuf_copyfrom(&heart, sizeof(heart));
+              printf("HEARTBEAT BROADCAST SENT AFTER BEING ELECTED LEADER \\n");
+              heartbeat_print(&heart);
+
               broadcast_send(&broadcast);
 
 
@@ -336,118 +346,106 @@ receiver(struct broadcast_conn *c, const linkaddr_t *from) {
        }
 
       }
+    
+  case leader:
+    {
+      
+      /*
 
-      break;
-
-    case leader:
-
-      {//log stuff later on
-
-      	//reset timer
-
-        	ctimer_set(&nodeTimeout, node.timeout * CLOCK_SECOND, &timeout_callback, NULL);  
-
-
-
-        	static struct Heartbeat heart;
-
-        	build_heartbeat(&heart, node.term, node.id, node.prevLogIndex, node.prevLogTerm, 
-            node.nextIndex,
-            1, node.leaderCommit); 
-            
-            packetbuf_copyfrom(&heart, sizeof(heart));
-            broadcast_send(&broadcast);
-
-
-        	printf("LEADER SENDING HEARTBEAT\n");
-
-        	heartbeat_print(&heart);
-
-
-
-        	//uip_create_linklocal_allnodes_mcast(&addr);
-
-        	//simple_udp_sendto(&broadcast_connection, &heart, sizeof(heart), &addr);
-
-        	if (msg->type == respond){
-
-                  struct Response *response = (struct Response *)packetbuf_dataptr();
-                  //vote_print(vote); to include response_print function in raft.c
-
-              if (responseMsg.currentTerm == heart.term && 
-                responseMsg.commitIndex == heart.nextIndex &&
-                responseMsg.valueCheck == heart.value) {
-
-              	 ++node.totalCommits;
-
-              	      
-
-                	if (node.totalCommits >= (TOTAL_NODES/2)) {   	
-
-                	node.leaderCommit = responseMsg.prevLogIndex; 
-
-                	node.totalCommits = 0;
-
-                  }		
-              }
-
-            else if (responseMsg.commitIndex < heart.nextIndex){
-              int patch = 0;
-              patch = responseMsg.commitIndex;
-
-
-              for (patch; patch <responseMsg.commitIndex; patch ++){
-                build_heartbeat(&heart, node.term, node.id, 
-                  node.prevLogIndex, node.prevLogTerm, node.nextIndex,
-                   node.log[patch], node.leaderCommit);
-
-                //to substitute w code that allows one to one sending.
-
-                packetbuf_copyfrom(&heart, sizeof(heart));
-                //broadcast_send(&broadcast);
-                unicast_send(&unicast, &(msg->from)); //check what is const union linkaddr_t, seems like only unicast has this issue
-                //uip_create_linklocal_allnodes_mcast(&addr);
-                //simple_udp_sendto(&broadcast_connection, &heart, sizeof(heart), &addr);
-                }
-
-
-
-              }
-
-	           
-
-	
-
-	node.prevLogIndex+=1;
-
-	break;
-
-      	/* note that this is in the PROCESS_THREAD already
-
- 
-
-          build_heartbeat(&heart, node.term, node.macAddr, node.prevLogIndex,  node.prevLogTerm, 0, node.leaderCommit);
+      ctimer_set(&nodeTimeout, node.timeout * CLOCK_SECOND, &timeout_callback, NULL);  
 
       
 
-
-
       static struct Heartbeat heart;
 
-      build_heartbeat(&heart, node.term, node.macAddr, 0, 0, 0, 0); //fill in vars later
+      build_heartbeat(&heart, node.term, node.id, node.prevLogIndex, node.prevLogTerm, 
+        node.nextIndex,
+        1, node.leaderCommit); 
+        
+        packetbuf_copyfrom(&heart, sizeof(heart));
+        broadcast_send(&broadcast);
+
+
+      printf("LEADER SENDING BROADCAST HEARTBEAT TO ALL (IN BROADCAST_RECV)\n");
+
+      heartbeat_print(&heart);
+     
+
+      
+      if (msg->type == heartbeat && !id_compare(msg->from, node.id) && msg->term >= node.prevLogTerm \
+        && heart.prevLogIndex >= node.prevLogIndex) {
+        struct Heartbeat *heart = (struct Heartbeat *)packetbuf_dataptr();
+
+      printf("HEART BROADCAST MESSAGE RECEIVED BY LEADER. SWITCHING TO FOLLOWER.\n");
+        //heartbeat_print(heart);
+
+         raft_set_follower(&node);
+       }
+      
+
+      if (msg->type == respond){
+
+              struct Response *response = (struct Response *)packetbuf_dataptr();
+              //heartbeat_print(heart);
+              //vote_print(vote); to include response_print function in raft.c
+              printf("RESPONSE UNICAST MESSAGE RECEIVED BY LEADER\n");
+
+          if (responseMsg.currentTerm == heart.term && 
+            responseMsg.commitIndex == heart.nextIndex &&
+            responseMsg.valueCheck == heart.value) {
+
+             ++node.totalCommits;
+
+                  
+
+              if (node.totalCommits >= (TOTAL_NODES/2)) {     
+
+              node.leaderCommit = responseMsg.prevLogIndex; 
+
+              node.totalCommits = 0;
+              printf("Commited to index: %d \n", node.leaderCommit);
+
+              }   
+          }
+
+          else if (responseMsg.commitIndex < heart.nextIndex){
+            int patch = 0;
+            patch = responseMsg.commitIndex;
+
+
+            for (patch; patch < responseMsg.commitIndex; patch ++){
+              build_heartbeat(&heart, node.term, node.id, 
+                node.prevLogIndex, node.prevLogTerm, node.nextIndex,
+                 node.log[patch], node.leaderCommit);
+
+              //to substitute w code that allows one to one sending.
+              linkaddr_t bufferId = {{msg->from}};
+              packetbuf_copyfrom(&heart, sizeof(heart));
+              packetbuf_set_addr(PACKETBUF_ADDR_RECEIVER, &(bufferId));
+            
+                //broadcast_send(&broadcast);
+              broadcast_send(&broadcast); 
+              //broadcast_send(&broadcast);
+              //unicast_send(&unicast, &(bufferId)); //check what is const union linkaddr_t, seems like only unicast has this issue
+              //uip_create_linklocal_allnodes_mcast(&addr);
+              //simple_udp_sendto(&broadcast_connection, &heart, sizeof(heart), &addr);
+              }
 
 
 
-      uip_create_linklocal_allnodes_mcast(&addr);
+          }
 
-      simple_udp_sendto(&broadcast_connection, &heart, sizeof(heart), &addr);*/
+    node.prevLogIndex+=1;
 
-      }
+    break;
 
-      break;
 
-  }
+        } */
 
+
+  
+
+    } 
 }}
 
 /*---------------------------------------------------------------------------*/
@@ -458,10 +456,11 @@ static void timeout_callback(void *ptr) {
 
   if ((node.state == follower) || (node.state == candidate)) {
 
-    printf("msg timeout, starting election process\n");
+    printf("MSG TIMEOUT, STARTING ELECTION\n");
 
-    ++node.term;
+    node.term+=1;
 
+    printf("+1 NODE TERM\n");
     raft_set_candidate(&node);
 
 
@@ -473,7 +472,12 @@ static void timeout_callback(void *ptr) {
     build_election(&elect, node.term, node.id, node.lastLogTerm, node.lastLogIndex); 
 
     packetbuf_copyfrom(&elect, sizeof(elect));
-    broadcast_send(&broadcast);
+    broadcast_send(&broadcast);\
+
+    printf("IN TIMEOUT CALLBACK, LEADER SENDING ELECTION BROADCAST REQUEST TO ALL\n");
+
+    election_print(&elect);
+
 \
     //uip_create_linklocal_allnodes_mcast(&addr);
 
@@ -490,23 +494,10 @@ static void timeout_callback(void *ptr) {
 }
 
 
-PROCESS_THREAD(unicast_process, ev, data)
-{ 
-  PROCESS_BEGIN();
-  //SENSORS_ACTIVATE(button_sensor);
-    for (;;) {
-        PROCESS_WAIT_EVENT();
-        /*if (ev == sensors_event && data == &button_sensor) {
-            //printf("A button activated; interrupt\n");
-        }*/
-        
-  }
-  PROCESS_END();
-}
 
 /*---------------------------------------------------------------------------*/
 
-PROCESS_THREAD(simple_comm_process, ev, data) {
+PROCESS_THREAD(raft_node_process, ev, data) {
 
   static struct etimer leaderTimer;
 
@@ -530,7 +521,7 @@ PROCESS_THREAD(simple_comm_process, ev, data) {
 
 
   broadcast_open(&broadcast, BROADCAST_CHANNEL, &broadcast_call);
-  unicast_open(&unicast, UNICAST_CHANNEL, &unicast_callbacks);
+  //unicast_open(&unicast, UNICAST_CHANNEL, &unicast_callbacks);
   raft_print(&node);
 
 
@@ -558,14 +549,17 @@ PROCESS_THREAD(simple_comm_process, ev, data) {
       //send heartbeat 
 
       static struct Heartbeat heart;
+      node.prevLogTerm = node.term;
+      node.prevLogIndex = node.nextIndex;
+      node.nextIndex++;
 
-      build_heartbeat(&heart, node.term, node.id,node.prevLogIndex,  node.prevLogTerm, 
+      build_heartbeat(&heart, node.term, node.id, node.prevLogIndex,  node.prevLogTerm, 
         node.nextIndex,
         1, node.leaderCommit); 
 
 
 
-      printf("LEADER SENDING HEARTBEAT\n");
+      printf("LEADER SENDING BROADCAST HEARTBEAT (WHILE LOOP)\n");
 
       heartbeat_print(&heart);
 
