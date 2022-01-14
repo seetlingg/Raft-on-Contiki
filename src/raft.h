@@ -231,7 +231,7 @@ void election_print(struct Election *elect);
 
 void vote_print(struct Vote *vote);
 void response_print(struct Response *response);
-void heart_broadcast_print(struct Heartbeat *heart, struct Raft *node);
+void broadcast_print(struct Msg *msg, struct Raft *node);
 
 
 void call_election(struct Raft *node);
