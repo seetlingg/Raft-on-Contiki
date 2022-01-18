@@ -277,7 +277,7 @@ broadcast_recv(struct broadcast_conn *c, const linkaddr_t *from) {
               struct Response *response = (struct Response *)packetbuf_dataptr();
 
               printf("RESPONSE UNICAST MESSAGE RECEIVED BY LEADER\n");
-              response_print(&responseMsg);
+              response_print(response);
 
           if (msg->term == node.currentTerm){
             if (response->success){
@@ -285,7 +285,7 @@ broadcast_recv(struct broadcast_conn *c, const linkaddr_t *from) {
 
               if (node.totalCommits >= (TOTAL_NODES/2)) {     
 
-                node.leaderCommit = responseMsg.prevLogIndex; 
+                node.leaderCommit = response->prevLogIndex; 
                 node.totalCommits = 0;
                 printf("Commited to index: %d \n", node.leaderCommit);
 
