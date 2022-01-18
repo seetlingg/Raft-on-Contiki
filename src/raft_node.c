@@ -147,61 +147,59 @@ broadcast_recv(struct broadcast_conn *c, const linkaddr_t *from) {
   else if (msg->type == heartbeat) {
 
     struct Heartbeat *heart = (struct Heartbeat *)packetbuf_dataptr();
-    
-    //memcpy(heart, packetbuf_dataptr(), sizeof(struct Heartbeat));
     printf("HEARTBEAT BROADCAST RECEIVED BY FOLLOWER \n");
-
     heartbeat_print(heart);
 
-    //reset timer
 
     ctimer_set(&nodeTimeout, node.timeout * CLOCK_SECOND, &timeout_callback, NULL);
     node.votedFor = 0;
+
     
-    
-
-          //try to insert log logic here:
-
-
-        
-
-    //to insert check for similarity of last entry. requires heartbeat log, rather than heartbeat value.
-
-       if (msg->term >= node.prevLogTerm && heart->prevLogIndex >= node.prevLogIndex 
-        && heart->leaderCommit <= node.prevLogIndex) {
-
-       //will require a for loop here from node.prevLogIndex to heart->leaderCommit
-        printf("HEARTBEAT VALUE ACCEPTED BY FOLLOWER \n");
-        node.log[heart->nextIndex] = heart->value; // to think about this to include log in each heartbeat
-        //node.log[node.prevLogIndex+1] = heart->entries[-1];
-        node.currentTerm = msg->term;
+    if (msg->term >= node.term){
         node.term = msg->term;
+        node.currentTerm = msg->term;
+      }
+
+    bool logOK = ((heart->prevLogIndex >= node.prevLogIndex) && \
+      (msg->term >= node.prevLogTerm));
+
+    if ((msg->term >= node.term) && logOK) {
+        printf("HEARTBEAT VALUE ACCEPTED BY FOLLOWER \n");
+
+        //to insert check for similarity of last entry. requires heartbeat log, rather than heartbeat value.
+        node.log[heart->nextIndex] = heart->value;
+
         node.prevLogTerm = msg->term;
-        node.prevLogIndex = heart->nextIndex;\
+        node.prevLogIndex = heart->nextIndex;
+        node.leaderCommit = heart->leaderCommit;
+
         
         build_response(&responseMsg, node.commitIndex, node.currentTerm, node.id, \
-      node.prevLogIndex, node.prevLogTerm, heart->value);
+          node.prevLogIndex, node.prevLogTerm, true);
 
         linkaddr_t bufferId = {{heart->from}};
-        //struct unicast_conn *c = (struct unicast_conn *)broadcast;
         packetbuf_copyfrom(&responseMsg, sizeof(responseMsg));
         packetbuf_set_addr(PACKETBUF_ADDR_RECEIVER, &(bufferId));
-
         printf("ACK UNICAST SENT BY FOLLOWER TO LEADER\n");
         response_print(&responseMsg);
-        //broadcast_send(&broadcast);
+        broadcast_send(&broadcast); 
+    }
+    
+    else {
+        build_response(&responseMsg, node.commitIndex, node.currentTerm, node.id, \
+          node.prevLogIndex, node.prevLogTerm, false);
+
+        linkaddr_t bufferId = {{heart->from}};
+        packetbuf_copyfrom(&responseMsg, sizeof(responseMsg));
+        packetbuf_set_addr(PACKETBUF_ADDR_RECEIVER, &(bufferId));
+        printf("NACK UNICAST SENT BY FOLLOWER TO LEADER\n");
+        response_print(&responseMsg);
         broadcast_send(&broadcast); 
 
         }
 
-
-    
-
-        /*else {
-        raft_set_candidate(&node);
-        }*/
-
-      }}
+      }
+    }
 
       break;
 
