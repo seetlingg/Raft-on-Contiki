@@ -25,7 +25,6 @@
 typedef enum {false = 0, true = !false} bool;
 
 
-
 enum states {follower, candidate, leader};
 
 enum msg_types {heartbeat, election, vote, respond};
@@ -84,6 +83,7 @@ struct Raft {
   uint8_t entries[10]; 
 
   uint8_t leaderCommit;
+  struct Set *voterSet;
 
 
 
@@ -91,6 +91,13 @@ struct Raft {
 
 };
 
+
+struct Set
+{
+    /* data */
+    int *members;
+    int length;
+} ;
 
 
 // default message struct to determine type and term on incoming messages
@@ -150,7 +157,7 @@ struct Response {
   uint8_t prevLogIndex; // Not sure what to do with these quite yet
   uint8_t prevLogTerm;  //
 
-  uint8_t valueCheck;   
+  bool success;   
   
 
 
@@ -159,7 +166,7 @@ struct Response {
 void build_response(struct Response *response, uint8_t commitIndex, uint8_t currentTerm,
   unsigned short int from,
   uint8_t prevLogIndex, 
-  uint8_t prevLogTerm, uint8_t valueCheck); 
+  uint8_t prevLogTerm, bool success); 
 
 
 
@@ -205,7 +212,18 @@ struct Vote {
 
 void build_vote(struct Vote *vote, uint32_t term, unsigned short int from, unsigned short int voteFor, bool voteGranted);
 
+//SET DECLARATIONS
 
+
+
+void init_set(struct Raft *node);
+bool check_empty_set(struct Raft *node);
+void insert_set_member(struct Raft *node, int member);
+bool is_set_member(struct Raft *node, int value);
+void print_set(struct Raft *node);
+
+
+/*---------*/
 
 void raft_init(struct Raft *node);
 
