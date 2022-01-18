@@ -1,11 +1,7 @@
 /******************************
-
 * Raft
-
 * Jacob English
-
 * je787413@ohio.edu
-
 *******************************/
 
 #include "contiki.h"
@@ -27,14 +23,12 @@
 
 
 #include <stdio.h>
-#include <stdlib.h>
 
 
 
 uint8_t get_timeout(void);
 /*
 static unsigned short int entries[10] = {0,0,0,0,0,0,0,0,0};
-
 static unsigned short int log[15] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0};*/
 
 
@@ -56,7 +50,6 @@ void raft_init(struct Raft *node) {
   node->votedFor = 0;
 
   /*for (i = 0; i < 8; ++i)
-
     node->votedFor[i] = 0;*/
 
   node->timeout = get_timeout();
@@ -107,16 +100,13 @@ void raft_init(struct Raft *node) {
 
   node->prevLogTerm = 0;
 
-/*
+
   int j = 0;
   for (j; j < 10; ++j) {
 
-    node->entries[j] = 0; } */
+    node->entries[j] = 0; }
 
   node->leaderCommit = 0;
-  //node->voterSet = init_set(node);
-
-  
 
 };
 
@@ -157,15 +147,12 @@ void raft_set_follower(struct Raft *node) {
   node->state = follower;
 
   /*int i = 0;
-
   for (i = 0; i < 8; ++i) //reset voted for
-
     node->votedFor[i] = 0;*/
 
   node->votedFor = 0;
 
   node->totalVotes = 0;
-
 
   leds_on(LEDS_RED);
 
@@ -233,15 +220,10 @@ void raft_print(struct Raft *node) {
   printf("votedFor: %d, ", node->votedFor);
 
   /*
-
   for (i = 0; i < 8; ++i)
-
     printf("%d", node->macAddr[i]);
-
   printf(",\n\t votedFor: ");
-
   for (i = 0; i < 8; ++i)
-
     printf("%d", node->votedFor[i]); */
 
   printf("timeout: %d, state: %d, totalVotes: %d}\n",\
@@ -269,23 +251,14 @@ bool id_compare(unsigned short int a, unsigned short int b) {
 
 
 /*
-
 bool mac_compare(uint8_t a[], uint8_t b[]) {
-
   int i = 0;
-
   for (i = 0; i < 8; ++i) {
-
     if (a[i] != b[i])
-
       return false;
-
   }
-
   return true;
-
 }
-
 */
 
 // RAFT MSG Functions
@@ -303,11 +276,8 @@ void build_election(struct Election *elect, uint32_t term, unsigned short int fr
   elect->from = node_id;
 
   /*
-
   int i = 0;
-
   for (i = 0; i < 8; ++i)
-
     elect->from[i] = from[i];*/
 
   elect->lastLogIndex = lastLogIndex;\
@@ -333,15 +303,10 @@ void build_vote(struct Vote *voteMsg, uint32_t term, unsigned short int from,\
   voteMsg->voteFor = voteFor;
 
   /*
-
   int i = 0;
-
   for (i = 0; i < 8; ++i)
-
     voteMsg->from[i] = from[i];
-
   for (i = 0; i < 8; ++i)
-
     voteMsg->voteFor[i] = voteFor[i]; */
 
   voteMsg->voteGranted = voteGranted;
@@ -353,8 +318,7 @@ void build_vote(struct Vote *voteMsg, uint32_t term, unsigned short int from,\
 void build_heartbeat(struct Heartbeat *heart, uint32_t term, 
   unsigned short int from, uint8_t prevLogIndex,
 
-               uint8_t prevLogTerm, uint8_t nextIndex,/*uint8_t prevValue,*/ \
-  uint8_t value, uint8_t leaderCommit) {
+               uint8_t prevLogTerm, uint8_t nextIndex,/*uint8_t prevValue,*/ uint8_t value, uint8_t leaderCommit) {
 
   heart->type = heartbeat;
   heart->bType = broadcast_msg;
@@ -364,9 +328,7 @@ void build_heartbeat(struct Heartbeat *heart, uint32_t term,
   heart->from = node_id;
 
   /*int i = 0;
-
   for (i = 0; i < 8; ++i)
-
     heart->from[i] = from[i];*/
 
   heart->prevLogIndex = prevLogIndex;
@@ -402,12 +364,13 @@ response->success=success;
 
 }
 
+
 //SET FUNCTIONS
 void init_set(struct Raft *node) {
   node->voterSet->length = 0;
   int i = 0;
-  for (; i< TOTAL_NODES; i++){
-      node->voterSet->members[i];
+  for (i; i< TOTAL_NODES; i++){
+      node->voterSet->members[i] = 0;
     }
 };
 
@@ -453,63 +416,6 @@ void print_set(struct Raft *node)
 }
 
 
-//try without malloc and realloc
-/*
-Set* init_set() {
-    Set *new_set = malloc(sizeof(Set));
-    new_set->length = 0;
-    new_set->members = malloc(sizeof(int));
-    return new_set;
-};
-
-
-
-void insert_set_member(Set *set, int member){
-    bool in_set = false;
-    int i = 0;
-    for (i; i < set->length; i++)
-        if (set->members[i] == member){
-            in_set = true;
-        }
-    if (!in_set) {
-        void *tmp = realloc(set->members, sizeof(int)*(set->length+1));
-        if (tmp) {
-        set->members =  tmp;
-        set->members[set->length] = member;
-        set->length = set->length+1;
-        }
-    }
-}
-
-
-bool check_empty_set(Set *set){
-    return (set->length == 0);
-}
-
-bool is_set_member(Set *set, int value)
-{
-  // if we can find the value in the set's members, it is in the set
-  int i = 0;
-  for (i; i < set->length; i++)
-    if (set->members[i] == value) return true;
-  
-  // if after checking all the set's members we can't find the value, it is 
-  // not a member of the set
-  return false;
-}
-// prints out the set
-void print_set(Set *set)
-{
-  // loop through the array of set values, print each of them out separated by 
-  // a comma, except the last element - instead output a newline afterwards
-  int i = 0;
-  for (i; i < set->length; i++)
-    if (i == (set->length - 1))
-      printf("%d\n", set->members[i]);
-    else
-      printf("%d,", set->members[i]);
-}
-*/
 
 //RAFT PRINT FUNCTIONS
 
@@ -528,11 +434,8 @@ void msg_print(uint32_t currTerm, uint8_t node_id, struct Msg *msg) {
 
 
   /*
-
   int i = 0;
-
   for (i = 0; i < 8; ++i)
-
     printf("%d", msg->from[i]);*/
 
   printf("\n");
@@ -552,11 +455,8 @@ void heartbeat_print(struct Heartbeat *heart) {
 
          heart->nextIndex, heart->prevLogIndex, heart->prevLogTerm, heart->leaderCommit);
     /*
-
   int i = 0;
-
   for (i = 0; i < 10; ++i)
-
     printf("%d", heart->entries[i]);*/
 
 
@@ -579,15 +479,12 @@ void election_print(struct Election *elect) {
 void vote_print(struct Vote *vote) {\
   //printf("UNICAST MESSAGE SENT \n");
 
-  printf("VOTED FOR ELECTION: {type: %d, term: %ld, voteFor: %d, ",
+  printf("VOTED FOR ELECTION: {type: %d, term: %ld, voteFor: %d,",
 
          vote->type, vote->term, vote->voteFor);
   /*
-
   int i = 0;
-
   for (i = 0; i < 8; ++i)
-
     printf("%d", vote->voteFor[i]);*/
 
   printf("voteGranted: %s}\n", vote->voteGranted ? "true" : "false");
@@ -618,8 +515,6 @@ void broadcast_print(struct Msg *msg, struct Raft *node){
     printf("UNICAST MESSAGE RECEIVED \n");
   }
   else{
-    printf("UNKNOWN COMMUNICATIONS \n");
+    printf("Oh dear, unknown communication \n");
   }
 }
-
-
