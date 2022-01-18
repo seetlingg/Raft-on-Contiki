@@ -1,11 +1,7 @@
 /******************************
-
 * Raft
-
 * Jacob English
-
 * je787413@ohio.edu
-
 *******************************/
 
 #include "contiki.h"
@@ -23,6 +19,7 @@
 #define TOTAL_NODES 3 //total number of nodes in network
 
 typedef enum {false = 0, true = !false} bool;
+
 
 
 enum states {follower, candidate, leader};
@@ -86,11 +83,9 @@ struct Raft {
   struct Set *voterSet;
 
 
-
   
 
 };
-
 
 struct Set
 {
@@ -172,6 +167,7 @@ void build_response(struct Response *response, uint8_t commitIndex, uint8_t curr
 
 
 
+
 // start election message
 
 struct Election {
@@ -222,8 +218,7 @@ void insert_set_member(struct Raft *node, int member);
 bool is_set_member(struct Raft *node, int value);
 void print_set(struct Raft *node);
 
-
-/*---------*/
+/*--------*/
 
 void raft_init(struct Raft *node);
 
@@ -257,4 +252,3 @@ void call_election(struct Raft *node);
 void send_vote(struct Raft *node);
 
 void send_heartbeat(struct Raft *node);
-
