@@ -36,7 +36,7 @@
 #include <stdio.h>
 
 #include <stdint.h>
-//#include <stdlib.h>
+#include <stdlib.h>
 
 
 #define BROADCAST_CHANNEL          7      // Channel used for broadcast data transfer
@@ -86,36 +86,12 @@ AUTOSTART_PROCESSES(&raft_node_process);
 
 /*---------------------------------------------------------------------------*/
 
-static void
-\
-broadcast_recv(struct broadcast_conn *c, const linkaddr_t *from) {
+static void broadcast_recv(struct broadcast_conn *c, const linkaddr_t *from) {
 
   //printf("\nGOT MESSAGE\n");
 
   struct Msg *msg = (struct Msg *)packetbuf_dataptr();
   broadcast_print(msg,&node);
-
-  //msg_print(node.term, sender_addr, msg);
-  //memcpy(msg, packetbuf_dataptr(), sizeof(struct Heartbeat)); // buffer has the copied data
-
-
-  //int i = 0;
-  
-/*\\
-  if (msg->term > node.term && !id_compare(msg->from, node.id)) { //got msg with higher term, update term and change to follower state
-
-    node.term = msg->term;
-
-    //raft_set_follower(&node);
-
-  }
-
-  else if (msg->term <= node.term) { //ignore terms less than node term
-
-    return;
-
-  }*/
-
 
 
   switch (node.state) {
@@ -149,26 +125,29 @@ broadcast_recv(struct broadcast_conn *c, const linkaddr_t *from) {
 
           //static struct Vote voteMsg;
 
-          build_vote(&voteMsg, node.term, node.id, 0, false);
+          
 
 
 
 	       unsigned short int nullAddr = 0;
 
-          //uint8_t nullAddr[8] = {0,0,0,0,0,0,0,0};
-
-          if (id_compare(nullAddr, node.votedFor) && (msg->term >= node.term) \
-          && (elect->lastLogIndex >= node.prevLogIndex)) { //vote has not been used
-
-              voteMsg.voteFor = elect->from;
-
-              printf("VOTE GRANTED! \t");
-
-              printf("voteFor: %d \n", voteMsg.voteFor);
+         if (msg->term >= node.term){
+            node.term = msg->term;
+            build_vote(&voteMsg, node.term, node.id, 0, false);
 
 
-              voteMsg.voteGranted = true;
-            }
+
+            if (id_compare(nullAddr, node.votedFor) && ((elect->lastLogTerm > node.prevLogTerm) || ((elect->lastLogIndex >= node.prevLogIndex) && \
+            (elect->lastLogTerm == node.prevLogTerm)))) { //vote has not been used
+
+                voteMsg.voteFor = elect->from;
+                voteMsg.voteGranted = true;
+
+                printf("VOTE GRANTED! \t");
+                printf("voteFor: %d \n", voteMsg.voteFor);
+                
+              }
+          }
 
             //update node.votedFor to sender_addr
 
@@ -191,21 +170,14 @@ broadcast_recv(struct broadcast_conn *c, const linkaddr_t *from) {
           
 
           else { //vote was used this term
+              build_vote(&voteMsg, node.term, node.id, 0, false);
+              printf("VOTE NOT GRANTED \n");
 
-             printf("VOTE NOT GRANTED \n");
-
-            //voteGranted = false;
-
-              voteMsg.voteGranted = false;
-
-             
-
+              //voteMsg.voteGranted = false;
           }
+        
         linkaddr_t bufferId = {{elect->from}};
-    
 
-    //send vote\cast_conn *)broadcast;
-        //simple_udp_sendto(&broadcast_connection, &voteMsg, sizeof(voteMsg), &addr);
         packetbuf_copyfrom(&voteMsg, sizeof(voteMsg));
         packetbuf_set_addr(PACKETBUF_ADDR_RECEIVER, &(bufferId));
     
@@ -223,37 +195,35 @@ broadcast_recv(struct broadcast_conn *c, const linkaddr_t *from) {
     
     //memcpy(heart, packetbuf_dataptr(), sizeof(struct Heartbeat));
     printf("HEARTBEAT BROADCAST RECEIVED BY FOLLOWER \n");
-
 		heartbeat_print(heart);
 
 		//reset timer
 
 		ctimer_set(&nodeTimeout, node.timeout * CLOCK_SECOND, &timeout_callback, NULL);
     node.votedFor = 0;
+
     
-		
-
-          //try to insert log logic here:
-
-
-			  
-
-		//to insert check for similarity of last entry. requires heartbeat log, rather than heartbeat value.
-
-		   if (msg->term >= node.prevLogTerm && heart->prevLogIndex >= node.prevLogIndex 
-        && heart->leaderCommit <= node.prevLogIndex) {
-
-		   //will require a for loop here from node.prevLogIndex to heart->leaderCommit
-        printf("HEARTBEAT VALUE ACCEPTED BY FOLLOWER \n");
-		   	node.log[heart->nextIndex] = heart->value; // to think about this to include log in each heartbeat
-        //node.log[node.prevLogIndex+1] = heart->entries[-1];
-        node.currentTerm = msg->term;
+    if (msg->term >= node.term){
         node.term = msg->term;
+        node.currentTerm = msg->term;
+      }
+
+    bool logOK = ((heart->prevLogIndex >= node.prevLogIndex) && \
+      (msg->term >= node.prevLogTerm));
+
+    if ((msg->term == node.term) && logOK) {
+        printf("HEARTBEAT VALUE ACCEPTED BY FOLLOWER \n");
+
+        //to insert check for similarity of last entry. requires heartbeat log, rather than heartbeat value.
+        node.log[heart->nextIndex] = heart->value;
+
         node.prevLogTerm = msg->term;
-        node.prevLogIndex = heart->nextIndex;\
+        node.prevLogIndex = heart->nextIndex;
+        node.leaderCommit = heart->leaderCommit;
+
         
         build_response(&responseMsg, node.commitIndex, node.currentTerm, node.id, \
-      node.prevLogIndex, node.prevLogTerm, heart->value);
+          node.prevLogIndex, node.prevLogTerm, true);
 
         linkaddr_t bufferId = {{heart->from}};
         //struct unicast_conn *c = (struct unicast_conn *)broadcast;
@@ -264,21 +234,25 @@ broadcast_recv(struct broadcast_conn *c, const linkaddr_t *from) {
         response_print(&responseMsg);
         //broadcast_send(&broadcast);
         broadcast_send(&broadcast); 
-
-		   	}
-
-
+    }
     
+		else {
+        build_response(&responseMsg, node.commitIndex, node.currentTerm, node.id, \
+          node.prevLogIndex, node.prevLogTerm, false);
 
-        /*else {
+        linkaddr_t bufferId = {{heart->from}};
+        //struct unicast_conn *c = (struct unicast_conn *)broadcast;
+        packetbuf_copyfrom(&responseMsg, sizeof(responseMsg));
+        packetbuf_set_addr(PACKETBUF_ADDR_RECEIVER, &(bufferId));
 
-        raft_set_candidate(&node);
+        printf("NACK UNICAST SENT BY FOLLOWER TO LEADER\n");
+        response_print(&responseMsg);
+        //broadcast_send(&broadcast);
+        broadcast_send(&broadcast); 
 
-        }*/
+    }
 
       }}
-
-      break;
 
     case candidate:
 
@@ -299,41 +273,54 @@ broadcast_recv(struct broadcast_conn *c, const linkaddr_t *from) {
           //vote is for this node
 
           if (id_compare(vote->voteFor, node.id) && vote->voteGranted) {
+            //how to check idempotency? will require a set with contains function
+
+            if (!is_set_member(&node, vote->from)){
+                insert_set_member(&node, vote->from);
 
             //increment vote count
-            printf("+1 VOTE \n");
+                printf("+1 VOTE \n");
 
-            ++node.totalVotes;
+                ++node.totalVotes;
 
-            if (node.totalVotes > (TOTAL_NODES / 2)) { //if vote count is majority, change to leader & send heartbeat
-              printf("QUORUM MET, SET NODE AS LEADER \n");
+                if (node.totalVotes > (TOTAL_NODES + 1/ 2)) { //if vote count is majority, change to leader & send heartbeat
+                  printf("QUORUM MET, SET NODE AS LEADER \n");
 
-              raft_set_leader(&node);
+                  raft_set_leader(&node);
 
-             
+                 
 
-              static struct Heartbeat heart;
+                  static struct Heartbeat heart;
 
-              build_heartbeat(&heart, node.term, node.id, node.prevLogIndex, 
-                node.prevLogTerm, node.nextIndex,
-                1, node.leaderCommit); 
-
-
-              packetbuf_copyfrom(&heart, sizeof(heart));
-              printf("HEARTBEAT BROADCAST SENT AFTER BEING ELECTED LEADER \\n");
-              heartbeat_print(&heart);
-
-              broadcast_send(&broadcast);
+                  build_heartbeat(&heart, node.term, node.id, node.prevLogIndex, 
+                    node.prevLogTerm, node.nextIndex,
+                    1, node.leaderCommit); 
 
 
+                  packetbuf_copyfrom(&heart, sizeof(heart));
+                  printf("HEARTBEAT BROADCAST SENT AFTER BEING ELECTED LEADER \n");
+                  heartbeat_print(&heart);
 
-              //uip_create_linklocal_allnodes_mcast(&addr);
+                  broadcast_send(&broadcast);
+                  }
 
-              //simple_udp_sendto(&broadcast_connection, &heart, sizeof(heart), &addr);
+            }
+
+            else {
+              printf("RECEIVED DUPLICATE VOTE \n");
 
             }
 
             //ctimer_set(&nodeTimeout, node.timeout * CLOCK_SECOND, &timeout_callback, NULL); //should have time out at the start and intermittently when receiving new messages?
+
+          }
+
+          else if (id_compare(vote->voteFor, node.id) && !vote->voteGranted) {
+            printf("VOTE NOT GRANTED UNICAST MESSAGE RECEIVED BY CANDIDATE \n");
+            vote_print(vote); 
+            printf("SETTING CANDIDATE AS FOLLOWER \n");    
+            raft_set_follower(&node);
+       
 
           }
 
@@ -345,10 +332,50 @@ broadcast_recv(struct broadcast_conn *c, const linkaddr_t *from) {
 
        }
 
+       else if (msg->type == election && msg->term > node.term){
+
+            node.term = msg->term;
+            node.currentTerm = msg->term;
+            raft_set_follower(&node);
+
+       }
+
       }
     
   case leader:
     {
+      if (msg->type == respond){
+
+              struct Response *response = (struct Response *)packetbuf_dataptr();
+              //heartbeat_print(heart);
+              //vote_print(vote); to include response_print function in raft.c
+              printf("RESPONSE UNICAST MESSAGE RECEIVED BY LEADER\n");
+
+
+          /*if (responseMsg.currentTerm == heart.term && 
+            responseMsg.commitIndex == heart.nextIndex &&
+            responseMsg.valueCheck == heart.value) */
+          if (msg->term == node.currentTerm){
+            if (response->success){
+
+              ++node.totalCommits;
+              if (node.totalCommits >= (TOTAL_NODES/2)) {     
+
+                node.leaderCommit = responseMsg.prevLogIndex; 
+
+                node.totalCommits = 0;
+                printf("Commited to index: %d \n", node.leaderCommit);
+
+              }   
+            }
+          }
+
+          else if (msg->term > node.currentTerm) {
+            node.term = msg->term;
+            node.currentTerm = msg->term;
+            raft_set_follower(&node);
+
+          }
       
       /*
 
@@ -446,7 +473,7 @@ broadcast_recv(struct broadcast_conn *c, const linkaddr_t *from) {
   
 
     } 
-}}
+}}}
 
 /*---------------------------------------------------------------------------*/
 
@@ -459,9 +486,11 @@ static void timeout_callback(void *ptr) {
     printf("MSG TIMEOUT, STARTING ELECTION\n");
 
     node.term+=1;
+    init_set(&node);
 
     printf("+1 NODE TERM\n");
     raft_set_candidate(&node);
+
 
 
 
