@@ -27,6 +27,7 @@
 
 
 #include <stdio.h>
+#include <stdlib.h>
 
 
 
@@ -106,13 +107,14 @@ void raft_init(struct Raft *node) {
 
   node->prevLogTerm = 0;
 
-
+/*
   int j = 0;
   for (j; j < 10; ++j) {
 
-    node->entries[j] = 0; }
+    node->entries[j] = 0; } */
 
   node->leaderCommit = 0;
+  //node->voterSet = init_set(node);
 
   
 
@@ -163,6 +165,7 @@ void raft_set_follower(struct Raft *node) {
   node->votedFor = 0;
 
   node->totalVotes = 0;
+
 
   leds_on(LEDS_RED);
 
@@ -350,7 +353,8 @@ void build_vote(struct Vote *voteMsg, uint32_t term, unsigned short int from,\
 void build_heartbeat(struct Heartbeat *heart, uint32_t term, 
   unsigned short int from, uint8_t prevLogIndex,
 
-               uint8_t prevLogTerm, uint8_t nextIndex,/*uint8_t prevValue,*/ uint8_t value, uint8_t leaderCommit) {
+               uint8_t prevLogTerm, uint8_t nextIndex,/*uint8_t prevValue,*/ \
+  uint8_t value, uint8_t leaderCommit) {
 
   heart->type = heartbeat;
   heart->bType = broadcast_msg;
@@ -384,7 +388,7 @@ void build_heartbeat(struct Heartbeat *heart, uint32_t term,
 void build_response(struct Response *response, uint8_t commitIndex, 
   uint8_t currentTerm, unsigned short int from,
  uint8_t prevLogIndex, 
-  uint8_t prevLogTerm, uint8_t valueCheck) {
+  uint8_t prevLogTerm, bool success) {
 
 response->type = respond;
 response->bType = unicast_msg;
@@ -394,13 +398,118 @@ response->from = node_id;
 response->prevLogIndex=prevLogIndex;
 response->prevLogTerm=prevLogTerm;
 
-response->valueCheck=0;
+response->success=success;
 
 }
 
+//SET FUNCTIONS
+void init_set(struct Raft *node) {
+  node->voterSet->length = 0;
+  int i = 0;
+  for (; i< TOTAL_NODES; i++){
+      node->voterSet->members[i];
+    }
+};
+
+void insert_set_member(struct Raft *node, int member){
+    bool in_set = false;
+    int i = 0;
+    for (; i < node->voterSet->length; i++)
+        if (node->voterSet->members[i] == member){
+            in_set = true;
+        }
+    if (!in_set) {
+        node->voterSet->length ++;
+        node->voterSet->members[node_id - 1] = node_id;
+        }
+    }
+
+bool check_empty_set(struct Raft *node){
+    return (node->voterSet->length == 0);
+}
+
+bool is_set_member(struct Raft *node, int value)
+{
+  // if we can find the value in the set's members, it is in the set
+  int i = 0;
+  for (; i < node->voterSet->length; i++)
+    if (node->voterSet->members[i] == value) return true;
+  
+  // if after checking all the set's members we can't find the value, it is 
+  // not a member of the set
+  return false;
+}
+// prints out the set
+void print_set(struct Raft *node)
+{
+  // loop through the array of set values, print each of them out separated by 
+  // a comma, except the last element - instead output a newline afterwards
+  int i = 0;
+  for (; i < node->voterSet->length; i++)
+    if (i == (node->voterSet->length - 1))
+      printf("%d\n", node->voterSet->members[i]);
+    else
+      printf("%d,", node->voterSet->members[i]);
+}
+
+
+//try without malloc and realloc
+/*
+Set* init_set() {
+    Set *new_set = malloc(sizeof(Set));
+    new_set->length = 0;
+    new_set->members = malloc(sizeof(int));
+    return new_set;
+};
 
 
 
+void insert_set_member(Set *set, int member){
+    bool in_set = false;
+    int i = 0;
+    for (i; i < set->length; i++)
+        if (set->members[i] == member){
+            in_set = true;
+        }
+    if (!in_set) {
+        void *tmp = realloc(set->members, sizeof(int)*(set->length+1));
+        if (tmp) {
+        set->members =  tmp;
+        set->members[set->length] = member;
+        set->length = set->length+1;
+        }
+    }
+}
+
+
+bool check_empty_set(Set *set){
+    return (set->length == 0);
+}
+
+bool is_set_member(Set *set, int value)
+{
+  // if we can find the value in the set's members, it is in the set
+  int i = 0;
+  for (i; i < set->length; i++)
+    if (set->members[i] == value) return true;
+  
+  // if after checking all the set's members we can't find the value, it is 
+  // not a member of the set
+  return false;
+}
+// prints out the set
+void print_set(Set *set)
+{
+  // loop through the array of set values, print each of them out separated by 
+  // a comma, except the last element - instead output a newline afterwards
+  int i = 0;
+  for (i; i < set->length; i++)
+    if (i == (set->length - 1))
+      printf("%d\n", set->members[i]);
+    else
+      printf("%d,", set->members[i]);
+}
+*/
 
 //RAFT PRINT FUNCTIONS
 
@@ -470,7 +579,7 @@ void election_print(struct Election *elect) {
 void vote_print(struct Vote *vote) {\
   //printf("UNICAST MESSAGE SENT \n");
 
-  printf("VOTED FOR ELECTION: {type: %d, term: %ld, voteFor: %d,",
+  printf("VOTED FOR ELECTION: {type: %d, term: %ld, voteFor: %d, ",
 
          vote->type, vote->term, vote->voteFor);
   /*
@@ -488,9 +597,10 @@ void vote_print(struct Vote *vote) {\
 void response_print(struct Response *response){
   //printf("UNICAST MESSAGE SENT \n");
   printf("RESPONSE: {commitIndex: %d, currentTerm: %d, from: %d, prevLogIndex: %d, \
-    prevLogTerm: %d, valueCheck: %d} \n", response->commitIndex, response->currentTerm, \
+    prevLogTerm: %d, ", response->commitIndex, response->currentTerm, \
     response->from, response->prevLogIndex,\
-    response->prevLogTerm, response->valueCheck);
+    response->prevLogTerm);
+  printf("success: %s} \n", response->success ? "true" : "false");
 }
 
 
@@ -508,7 +618,7 @@ void broadcast_print(struct Msg *msg, struct Raft *node){
     printf("UNICAST MESSAGE RECEIVED \n");
   }
   else{
-    printf("Oh dear, unknown communication \n");
+    printf("UNKNOWN COMMUNICATIONS \n");
   }
 }
 
